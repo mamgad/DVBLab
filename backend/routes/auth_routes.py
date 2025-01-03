@@ -1,0 +1,92 @@
+from flask import Blueprint, request, jsonify
+from models import db, User, LoginAttempt
+from datetime import datetime, timedelta
+import jwt
+from auth import token_required
+
+auth_bp = Blueprint('auth', __name__)
+
+@auth_bp.route('/api/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'Username already exists'}), 400
+    
+    user = User(username=username)
+    user.set_password(password)
+    
+    db.session.add(user)
+    db.session.commit()
+    
+    return jsonify({'message': 'User registered successfully', 'id': user.id}), 201
+
+@auth_bp.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    
+    query = f"SELECT * FROM user WHERE username = '{username}'"
+    user = db.session.execute(query).fetchone()
+    
+    if user and User.query.get(user[0]).check_password(password):
+        user_obj = User.query.get(user[0])
+        
+        token = jwt.encode(
+            {
+                'user_id': user[0],
+                'username': username,
+                'exp': datetime.utcnow() + timedelta(days=1)
+            },
+            'secret',
+            algorithm='HS256'
+        )
+        
+        login_attempt = LoginAttempt(
+            username=username,
+            ip_address=request.remote_addr,
+            created_at=datetime.utcnow(),
+            success=True
+        )
+        db.session.add(login_attempt)
+        db.session.commit()
+        
+        return jsonify({
+            'token': token,
+            'user': {
+                'id': user_obj.id,
+                'username': user_obj.username,
+                'balance': float(user_obj.balance)
+            }
+        })
+    
+    login_attempt = LoginAttempt(
+        username=username,
+        ip_address=request.remote_addr,
+        created_at=datetime.utcnow(),
+        success=False
+    )
+    db.session.add(login_attempt)
+    db.session.commit()
+    
+    return jsonify({'error': 'Invalid username or password'}), 401
+
+@auth_bp.route('/api/logout', methods=['POST'])
+@token_required
+def logout(current_user):
+    # JWT tokens can't be invalidated server-side
+    # Client should remove the token
+    return jsonify({'message': 'Logged out successfully'})
+
+@auth_bp.route('/api/me', methods=['GET'])
+@token_required
+def get_current_user(current_user):
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'balance': float(current_user.balance),
+        'profile': current_user.get_profile()
+    }) 
