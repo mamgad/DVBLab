@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, CreditCard, DollarSign, User, LogOut, Settings, Activity } from 'lucide-react';
+import { Bell, CreditCard, DollarSign, User, LogOut, Settings as SettingsIcon, Activity } from 'lucide-react';
 import { Alert, AlertDescription } from './components/ui/alert';
 import TransferForm from './components/TransferForm';
 import TransactionList from './components/TransactionList';
 import LoginPage from './components/LoginPage';
+import './index.css';
 
 const App = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -88,7 +89,7 @@ const App = () => {
         <Header user={user} onLogout={handleLogout} />
         
         {showAlert && (
-          <Alert className="m-4">
+          <Alert className={`m-4 ${alertMessage.includes('successful') ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-900'}`}>
             <AlertDescription>{alertMessage}</AlertDescription>
           </Alert>
         )}
@@ -106,6 +107,12 @@ const App = () => {
           {currentPage === 'transactions' && (
             <TransactionList userId={user.id} />
           )}
+          {currentPage === 'profile' && (
+            <Profile user={user} />
+          )}
+          {currentPage === 'settings' && (
+            <Settings />
+          )}
         </main>
       </div>
     </div>
@@ -121,7 +128,7 @@ const Sidebar = ({ currentPage, setCurrentPage }) => (
       <SidebarItem icon={Activity} label="Dashboard" page="dashboard" currentPage={currentPage} setCurrentPage={setCurrentPage} />
       <SidebarItem icon={CreditCard} label="Transactions" page="transactions" currentPage={currentPage} setCurrentPage={setCurrentPage} />
       <SidebarItem icon={User} label="Profile" page="profile" currentPage={currentPage} setCurrentPage={setCurrentPage} />
-      <SidebarItem icon={Settings} label="Settings" page="settings" currentPage={currentPage} setCurrentPage={setCurrentPage} />
+      <SidebarItem icon={SettingsIcon} label="Settings" page="settings" currentPage={currentPage} setCurrentPage={setCurrentPage} />
     </nav>
   </div>
 );
@@ -155,21 +162,45 @@ const Header = ({ user, onLogout }) => (
   </header>
 );
 
-const Dashboard = ({ user, onTransferSuccess }) => (
-  <div>
-    <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <DashboardCard title="Current Balance" value={`${user.balance.toFixed(2)}`} icon={DollarSign} />
-      <DashboardCard title="Total Transactions" value="Loading..." icon={Activity} />
-      <DashboardCard title="Notifications" value="3" icon={Bell} />
+const Dashboard = ({ user, onTransferSuccess }) => {
+  const [transactionCount, setTransactionCount] = useState(0);
+
+  useEffect(() => {
+    const fetchTransactionCount = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/transactions', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (response.ok) {
+          const transactions = await response.json();
+          setTransactionCount(transactions.length);
+        }
+      } catch (error) {
+        console.error('Failed to fetch transactions:', error);
+      }
+    };
+
+    fetchTransactionCount();
+  }, []);
+
+  return (
+    <div>
+      <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <DashboardCard title="Current Balance" value={`$${user.balance.toFixed(2)}`} icon={DollarSign} />
+        <DashboardCard title="Total Transactions" value={transactionCount} icon={Activity} />
+        <DashboardCard title="Notifications" value="3" icon={Bell} />
+      </div>
+      
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h3 className="text-xl font-semibold mb-4">Quick Transfer</h3>
+        <TransferForm onSuccess={onTransferSuccess} />
+      </div>
     </div>
-    
-    <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold mb-4">Quick Transfer</h3>
-      <TransferForm onSuccess={onTransferSuccess} />
-    </div>
-  </div>
-);
+  );
+};
 
 const DashboardCard = ({ title, value, icon: Icon }) => (
   <div className="bg-white p-6 rounded-lg shadow-md">
@@ -180,5 +211,220 @@ const DashboardCard = ({ title, value, icon: Icon }) => (
     <p className="text-2xl font-bold text-gray-900">{value}</p>
   </div>
 );
+
+const Profile = ({ user }) => {
+  const [profile, setProfile] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/profile', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setProfile(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch profile:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(profile)
+      });
+
+      if (response.ok) {
+        setIsEditing(false);
+        // Refresh profile data
+        fetchProfile();
+      }
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-4">Loading profile...</div>;
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6">Profile</h2>
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold">Personal Information</h3>
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            {isEditing ? 'Cancel' : 'Edit'}
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Full Name</label>
+            <input
+              type="text"
+              value={profile.fullName}
+              onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+              disabled={!isEditing}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input
+              type="email"
+              value={profile.email}
+              onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+              disabled={!isEditing}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Phone</label>
+            <input
+              type="tel"
+              value={profile.phone}
+              onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+              disabled={!isEditing}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Address</label>
+            <textarea
+              value={profile.address}
+              onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+              disabled={!isEditing}
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            />
+          </div>
+
+          {isEditing && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Settings = () => {
+  const [settings, setSettings] = useState({
+    emailNotifications: true,
+    twoFactorAuth: false,
+    language: 'en',
+    theme: 'light'
+  });
+
+  const handleChange = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6">Settings</h2>
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Notifications</h3>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={settings.emailNotifications}
+                onChange={(e) => handleChange('emailNotifications', e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label className="ml-2 block text-sm text-gray-900">
+                Email Notifications
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Security</h3>
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={settings.twoFactorAuth}
+                onChange={(e) => handleChange('twoFactorAuth', e.target.checked)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label className="ml-2 block text-sm text-gray-900">
+                Two-Factor Authentication
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Preferences</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Language</label>
+                <select
+                  value={settings.language}
+                  onChange={(e) => handleChange('language', e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Theme</label>
+                <select
+                  value={settings.theme}
+                  onChange={(e) => handleChange('theme', e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                >
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="system">System</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default App; 

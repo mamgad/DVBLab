@@ -23,7 +23,9 @@ def transfer(current_user):
         sender_id=current_user.id,
         receiver_id=receiver.id,
         amount=amount,
-        description=description
+        description=description,
+        status='completed',
+        completed_at=datetime.utcnow()
     )
     
     current_user.balance -= amount
@@ -34,16 +36,7 @@ def transfer(current_user):
     
     return jsonify({
         'message': 'Transfer successful',
-        'transaction': {
-            'id': transaction.id,
-            'sender_id': transaction.sender_id,
-            'receiver_id': transaction.receiver_id,
-            'amount': float(transaction.amount),
-            'description': transaction.description,
-            'status': transaction.status,
-            'created_at': transaction.created_at.isoformat(),
-            'completed_at': transaction.completed_at.isoformat() if transaction.completed_at else None
-        }
+        'transaction': transaction.to_dict()
     })
 
 @transaction_bp.route('/api/transactions', methods=['GET'])

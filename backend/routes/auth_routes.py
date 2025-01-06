@@ -3,6 +3,7 @@ from models import db, User, LoginAttempt
 from datetime import datetime, timedelta
 import jwt
 from auth import token_required
+import json
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -89,4 +90,43 @@ def get_current_user(current_user):
         'username': current_user.username,
         'balance': float(current_user.balance),
         'profile': current_user.get_profile()
+    })
+
+@auth_bp.route('/api/profile', methods=['GET'])
+@token_required
+def get_profile(current_user):
+    profile_data = current_user.get_profile()
+    return jsonify({
+        'fullName': profile_data.get('fullName', current_user.username),
+        'email': current_user.email,
+        'phone': profile_data.get('phone', ''),
+        'address': profile_data.get('address', '')
+    })
+
+@auth_bp.route('/api/profile', methods=['PUT'])
+@token_required
+def update_profile(current_user):
+    data = request.get_json()
+    
+    # Update email in User model
+    current_user.email = data.get('email')
+    
+    # Update profile JSON data
+    profile_data = {
+        'fullName': data.get('fullName'),
+        'phone': data.get('phone'),
+        'address': data.get('address')
+    }
+    current_user.set_profile(profile_data)
+    
+    db.session.commit()
+    
+    return jsonify({
+        'message': 'Profile updated successfully',
+        'profile': {
+            'fullName': profile_data['fullName'],
+            'email': current_user.email,
+            'phone': profile_data['phone'],
+            'address': profile_data['address']
+        }
     }) 
