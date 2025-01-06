@@ -1,239 +1,304 @@
-# Module 0: Security Assessment Methodology
+# Module 0: Secure Code Review Methodology
 
-## Overview
-Before diving into specific vulnerabilities, it's crucial to understand how to systematically approach security assessment of a web application. This module covers threat modeling, identifying critical paths, and methodologies for finding vulnerabilities.
+## 1. Introduction to Secure Code Review
 
-## 1. Understanding the Application
+### 1.1 What is Secure Code Review?
+Secure code review is a systematic examination of source code to identify security vulnerabilities that could compromise an application's integrity. In the context of our banking application, this process is particularly crucial as we're dealing with sensitive financial data and transactions. During a review, security professionals analyze the codebase to identify potential vulnerabilities in authentication mechanisms, transaction processing, data validation, and other security-critical components. This proactive approach helps prevent security breaches before they can be exploited in production environments.
 
-### 1.1 Application Architecture
-Our banking application consists of:
-```
-Backend (Flask)                Frontend (React)
-├── API Endpoints             ├── Components
-├── Database Models           ├── State Management
-├── Authentication           ├── API Integration
-└── Business Logic           └── User Interface
-```
+### 1.2 Types of Code Review Approaches
+Code review can be approached through different methodologies, each offering unique insights into application security:
 
-### 1.2 Critical Functions
-1. Money Transfer System
-   - Fund transfers between accounts
-   - Balance management
-   - Transaction history
+Manual Code Review involves line-by-line examination of the source code, focusing on security-critical components like authentication modules, transaction processors, and data access layers. In our banking application, this includes reviewing password hashing implementations, session management code, and transaction validation logic.
 
-2. User Authentication
-   - Login/Registration
-   - Session management
-   - Password handling
+Automated Analysis utilizes specialized tools to identify common security patterns and potential vulnerabilities. This includes static application security testing (SAST) tools that can identify issues like SQL injection vulnerabilities in database queries, cross-site scripting (XSS) in frontend React components, and insecure cryptographic implementations.
 
-3. Account Management
-   - Profile updates
-   - Balance viewing
-   - Transaction history access
+Hybrid Review combines both manual and automated approaches. For instance, automated tools might flag potential SQL injection points in our banking application's transaction processing code, which reviewers then manually verify and assess for exploitability.
 
-## 2. Threat Modeling
+## 2. Code Review Methodology
 
-### 2.1 STRIDE Analysis
-1. **Spoofing**
-   - Impersonating other users
-   - Session hijacking
-   - Token theft
+### 2.1 Pre-Review Phase
+The pre-review phase establishes the foundation for effective code analysis. It begins with understanding the banking application's architecture, including its React frontend, Python backend, and database schema. Security requirements specific to financial applications are reviewed, including regulatory requirements for handling customer data and transaction processing.
 
-2. **Tampering**
-   - Modifying transaction amounts
-   - Altering transaction history
-   - Manipulating API responses
+Scope definition focuses on identifying security-critical components. In our banking application, this includes user authentication modules, transaction processing systems, account management functions, and data access layers. Special attention is paid to components handling sensitive operations like fund transfers and account balance updates.
 
-3. **Repudiation**
-   - Denying transactions
-   - Lack of audit logs
-   - Insufficient transaction tracking
+Risk assessment prioritizes code review efforts based on potential impact. High-risk components like payment processing modules and user authentication systems receive thorough scrutiny, while lower-risk components like UI formatting functions might receive lighter review.
 
-4. **Information Disclosure**
-   - Exposing user data
-   - Leaking transaction details
-   - Revealing system information
+### 2.2 Review Phase
+During the review phase, code is examined through multiple security lenses. Architecture review evaluates the implementation of security patterns and controls. For our banking application, this includes examining how authentication is implemented across the full stack, how session management is handled, and how transaction integrity is maintained.
 
-5. **Denial of Service**
-   - Overwhelming transaction system
-   - Database connection exhaustion
-   - API rate limiting bypass
+Security control review focuses on specific security mechanisms. This includes analyzing input validation in both frontend and backend code, examining SQL query construction for injection vulnerabilities, and reviewing access control implementations. Special attention is paid to transaction validation logic and account access controls.
 
-6. **Elevation of Privilege**
-   - Accessing admin functions
-   - Bypassing authorization
-   - Exploiting IDOR vulnerabilities
+Vulnerability assessment identifies specific weaknesses in the code. This includes reviewing for common banking application vulnerabilities like:
+- Transaction tampering through parameter manipulation
+- Authentication bypass through session management flaws
+- Unauthorized account access through IDOR vulnerabilities
+- SQL injection in financial queries
+- Cross-site scripting in transaction history displays
 
-### 2.2 Attack Trees
-Example for Money Transfer:
-```
-Goal: Unauthorized Money Transfer
-├── Authentication Bypass
-│   ├── SQL Injection in login
-│   ├── Session hijacking
-│   └── Token manipulation
-├── Authorization Bypass
-│   ├── IDOR exploitation
-│   ├── Missing access controls
-│   └── Role manipulation
-└── Transaction Manipulation
-    ├── Negative amounts
-    ├── Race conditions
-    └── Decimal precision attacks
-```
+### 2.3 Exploitation and Verification
+The exploitation phase verifies identified vulnerabilities through practical testing. This involves:
 
-## 3. Source-to-Sink Analysis
+Proof of Concept Development: Creating specific test cases that demonstrate vulnerability exploitation. For example, crafting SQL injection payloads that could manipulate transaction records or developing scripts that exploit authentication bypasses.
 
-### 3.1 Identifying Sources (User Input)
+Impact Assessment: Evaluating the real-world implications of each vulnerability. In our banking context, this might include demonstrating how an attacker could:
+- Transfer funds from other users' accounts
+- Elevate privileges to administrative access
+- View sensitive customer information
+- Manipulate transaction histories
+- Bypass transaction limits
+
+## 3. Security Control Assessment
+
+### 3.1 Authentication Review
+Authentication review focuses on identifying vulnerabilities in user verification systems. Key areas include:
+- Password hashing implementation in the backend
+- Session token generation and validation
+- Multi-factor authentication implementation
+- Password reset functionality
+- Account recovery mechanisms
+
+### 3.2 Authorization Review
+Authorization review examines access control implementation, focusing on:
+- Role-based access control in banking operations
+- Transaction authorization mechanisms
+- Account access restrictions
+- API endpoint protection
+- Administrative function security
+
+### 3.3 Data Validation Review
+Data validation review ensures proper input handling throughout the application:
+- Transaction amount validation
+- Account number verification
+- User input sanitization
+- API parameter validation
+- File upload security
+
+## 4. Common Banking Application Vulnerabilities
+
+### 4.1 Transaction Security
+Analysis of transaction-related vulnerabilities:
+- Parameter tampering in transfer requests
+- Race conditions in balance updates
+- Transaction replay attacks
+- Decimal precision errors
+- Transaction limit bypasses
+
+### 4.2 Data Security
+Review of data protection mechanisms:
+- Sensitive data exposure
+- Insecure direct object references
+- SQL injection in financial queries
+- Cross-site scripting in account views
+- Information leakage in error messages
+
+## 5. Documentation and Reporting
+
+### 5.1 Vulnerability Documentation
+Each finding should include:
+- Clear vulnerability description
+- Affected code components
+- Exploitation proof of concept
+- Impact on banking operations
+- Recommended fixes with code examples
+
+### 5.2 Risk Assessment
+Risk levels should consider:
+- Financial impact
+- Customer data exposure
+- Regulatory compliance
+- Reputational damage
+- Exploitation complexity
+
+## 6. Secure Development Guidelines
+
+### 6.1 Secure Coding Practices
+Essential practices for banking applications:
+- Input validation patterns
+- Secure transaction processing
+- Safe SQL query construction
+- Proper session management
+- Secure error handling
+
+### 6.2 Security Testing
+Continuous security validation:
+- Unit tests for security controls
+- Integration testing of security mechanisms
+- Penetration testing procedures
+- Automated security scanning
+- Regular code reviews
+
+## 7. Remediation Strategies
+
+### 7.1 Vulnerability Fixes
+Approach to fixing identified issues:
+- Code-level security fixes
+- Security control implementation
+- Framework security features
+- Third-party security solutions
+- Configuration hardening
+
+### 7.2 Security Improvements
+Long-term security enhancements:
+- Security architecture improvements
+- Framework upgrades
+- Security monitoring implementation
+- Developer security training
+- Security process automation 
+
+## 8. Practical Code Review Techniques
+
+### 8.1 Source Code Analysis Tools
+In our banking application review, we utilize several key tools:
+- Static Analysis: Using tools like Bandit for Python backend code to identify security issues in authentication and transaction handling
+- Dynamic Analysis: Employing tools like OWASP ZAP to test the React frontend for XSS and CSRF vulnerabilities
+- Dependency Scanning: Checking both frontend and backend dependencies for known vulnerabilities using tools like npm audit and safety
+- Custom Scripts: Developing specific tools for testing transaction logic and API endpoints
+
+### 8.2 Manual Review Patterns
+Effective patterns for reviewing our banking application code:
+
+Source Code Tracing: Following data flow from user input through the application. For example, tracing how transaction amounts are validated, processed, and stored, from the React frontend through the Python backend to the database.
+
+Critical Function Analysis: Identifying and reviewing security-critical functions such as:
+- Authentication functions in auth.py
+- Transaction processing in transactions.py
+- Account management in accounts.py
+- Session handling in session_manager.py
+
+Pattern Recognition: Looking for common vulnerability patterns in our codebase:
+- Unvalidated user input in API endpoints
+- Direct object references in account access
+- Insecure SQL queries in transaction processing
+- Weak cryptographic implementations in authentication
+
+## 9. Exploitation Techniques and Examples
+
+### 9.1 Common Attack Vectors
+Practical examples from our banking application:
+
+SQL Injection:
 ```python
-# Example sources in our application
-sources = {
-    'HTTP Parameters': [
-        request.args.get('user_id'),
-        request.form['amount']
-    ],
-    'HTTP Headers': [
-        request.headers['Authorization'],
-        request.headers['Content-Type']
-    ],
-    'Request Body': [
-        request.get_json(),
-        request.data
-    ],
-    'File Uploads': [
-        request.files['document']
-    ]
-}
+# Vulnerable code example from our application
+def get_transaction(transaction_id):
+    query = f"SELECT * FROM transactions WHERE id = {transaction_id}"  # Vulnerable to SQL injection
+    
+# Secure implementation
+def get_transaction(transaction_id):
+    query = "SELECT * FROM transactions WHERE id = %s"
+    cursor.execute(query, (transaction_id,))
 ```
 
-### 3.2 Identifying Sinks (Dangerous Operations)
+Authentication Bypass:
 ```python
-# Example sinks in our application
-sinks = {
-    'SQL Operations': [
-        'db.session.execute(query)',
-        'User.query.filter_by()'
-    ],
-    'File Operations': [
-        'open(filename, "w")',
-        'file.write()'
-    ],
-    'Command Execution': [
-        'os.system()',
-        'subprocess.run()'
-    ],
-    'Financial Operations': [
-        'update_balance()',
-        'process_transfer()'
-    ]
-}
+# Vulnerable session validation
+def validate_session(session_id):
+    if session_id in active_sessions:  # Race condition vulnerability
+        return True
+        
+# Secure implementation
+def validate_session(session_id):
+    with lock:
+        if session_id in active_sessions and not is_expired(session_id):
+            return True
 ```
 
-### 3.3 Tracing Data Flow
-Example trace for transfer functionality:
+### 9.2 Proof of Concept Development
+Methodology for creating PoCs in our banking environment:
+
+1. Vulnerability Identification:
 ```python
-# Source: User input
-amount = request.json.get('amount')  # SOURCE
-
-# Data flow
-amount = Decimal(str(amount))        # Transformation
-validate_amount(amount)              # Validation
-current_user.balance -= amount       # Business Logic
-
-# Sink: Database operation
-db.session.commit()                  # SINK
+# Example of identifying IDOR vulnerability
+@app.route('/api/account/<account_id>')
+def get_account_details(account_id):
+    # Vulnerable: No user authorization check
+    return db.query(f"SELECT * FROM accounts WHERE id={account_id}")
 ```
 
-## 4. Risk Assessment Matrix
-
-### 4.1 Impact vs Likelihood
-```
-Impact │ High    Med    Low
-────────────────────────────
-High   │  1      2      3
-Med    │  2      3      4
-Low    │  3      4      5
-
-Priority 1 (Critical):
-- SQL Injection in login
-- Unauthorized transfers
-- Token manipulation
-
-Priority 2 (High):
-- IDOR vulnerabilities
-- Input validation bypass
-- Rate limiting bypass
+2. Exploit Development:
+```python
+# Example exploit script
+def test_idor_vulnerability():
+    # Login as user A
+    session = login('userA', 'passwordA')
+    # Attempt to access user B's account
+    response = session.get('/api/account/userB_account_id')
+    assert response.status_code == 200  # Vulnerability confirmed
 ```
 
-## 5. Testing Methodology
+3. Impact Demonstration:
+```python
+# Example of demonstrating transaction manipulation
+def demonstrate_transaction_vulnerability():
+    # Create two test accounts
+    account1 = create_test_account(1000)  # $1000 balance
+    account2 = create_test_account(0)     # $0 balance
+    
+    # Exploit race condition in transfer
+    concurrent_transfers(
+        from_account=account1,
+        to_account=account2,
+        amount=1000,
+        num_concurrent=2
+    )
+    
+    # Verify balance manipulation
+    assert get_balance(account2) > 1000  # Exploit successful
+```
 
-### 5.1 Static Analysis
-1. Code Review Process:
-   ```python
-   # Example checklist for each endpoint
-   def review_endpoint(endpoint):
-       check_input_validation()
-       check_authentication()
-       check_authorization()
-       check_business_logic()
-       check_data_sanitization()
-       check_error_handling()
-   ```
+## 10. Real-world Application
 
-### 5.2 Dynamic Analysis
-1. Manual Testing:
-   ```bash
-   # Example test cases
-   # 1. Authentication bypass
-   curl -X POST http://localhost:5000/api/login \
-     -d '{"username": "admin"; --"}'
+### 10.1 Code Review Checklist
+Specific checklist for our banking application:
 
-   # 2. IDOR test
-   curl http://localhost:5000/api/transactions/123 \
-     -H "Authorization: Bearer <token>"
-   ```
+Frontend (React):
+- [ ] Check for exposed sensitive data in state management
+- [ ] Verify CSRF protection on all forms
+- [ ] Review authentication state management
+- [ ] Validate input sanitization
+- [ ] Check for secure communication with backend
 
-2. Automated Testing:
-   ```python
-   def test_security_controls():
-       test_sql_injection()
-       test_xss_vectors()
-       test_csrf_protection()
-       test_rate_limiting()
-       test_input_validation()
-   ```
+Backend (Python):
+- [ ] Review all database queries for SQL injection
+- [ ] Verify transaction atomicity
+- [ ] Check authentication mechanisms
+- [ ] Validate access control implementation
+- [ ] Review error handling and logging
 
-## 6. Security Assessment Checklist
+### 10.2 Common Findings and Solutions
+Practical examples from our codebase:
 
-### 6.1 Pre-assessment
-- [ ] Understand application architecture
-- [ ] Identify critical functions
-- [ ] Create threat model
-- [ ] Map attack surface
+1. Transaction Race Conditions:
+```python
+# Problem: Unsynchronized balance updates
+def transfer_funds(from_account, to_account, amount):
+    if get_balance(from_account) >= amount:  # Race condition
+        update_balance(from_account, -amount)
+        update_balance(to_account, amount)
 
-### 6.2 Assessment
-- [ ] Review authentication mechanisms
-- [ ] Check authorization controls
-- [ ] Validate input handling
-- [ ] Test business logic
-- [ ] Verify error handling
-- [ ] Check data encryption
-- [ ] Review API security
+# Solution: Implement proper locking
+@transaction.atomic
+def transfer_funds(from_account, to_account, amount):
+    with lock(from_account, to_account):
+        if get_balance(from_account) >= amount:
+            update_balance(from_account, -amount)
+            update_balance(to_account, amount)
+```
 
-### 6.3 Post-assessment
-- [ ] Prioritize findings
-- [ ] Verify fixes
-- [ ] Document recommendations
-- [ ] Create security roadmap
+2. Insecure Direct Object References:
+```python
+# Problem: No authorization check
+@app.route('/api/statement/<statement_id>')
+def get_statement(statement_id):
+    return Statement.query.get(statement_id)  # IDOR vulnerability
 
-## Practice Exercise
-1. Create a threat model for the user registration process
-2. Build an attack tree for the password reset functionality
-3. Perform source-to-sink analysis on the transfer function
-4. Create a risk assessment matrix for identified vulnerabilities
+# Solution: Add proper authorization
+@app.route('/api/statement/<statement_id>')
+@require_authentication
+def get_statement(statement_id):
+    statement = Statement.query.get(statement_id)
+    if not statement or statement.user_id != current_user.id:
+        raise Unauthorized()
+    return statement
+```
 
-## Additional Resources
-- [OWASP Threat Modeling Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html)
-- [Microsoft STRIDE Model](https://docs.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-threats)
-- [OWASP Code Review Guide](https://owasp.org/www-project-code-review-guide/)
-- [OWASP Testing Guide](https://owasp.org/www-project-web-security-testing-guide/) 
+This practical approach to code review and exploitation helps developers understand not just the theory but also the practical implementation of security in our banking application context. 
