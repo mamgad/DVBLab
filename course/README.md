@@ -1,4 +1,4 @@
-# VulnerableBank: Hands-on Web Security with Python & React
+# DVB Lab: Hands-on Web Security with Python & React
 ## A Practical Guide to Web Application Security
 
 This repository contains a deliberately vulnerable banking application designed for learning secure code review and web application security. It serves as a practical learning environment where developers and security professionals can explore common security vulnerabilities, understand their impact, and learn how to fix them.
