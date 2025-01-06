@@ -89,7 +89,9 @@ const App = () => {
         <Header user={user} onLogout={handleLogout} />
         
         {showAlert && (
-          <Alert className={`m-4 ${alertMessage.includes('successful') ? 'bg-green-50 text-green-900' : 'bg-red-50 text-red-900'}`}>
+          <Alert className={`m-4 ${
+            alertMessage.toLowerCase().includes('success') ? 'bg-green-50 border-green-500 text-green-800' : 'bg-red-50 border-red-500 text-red-800'
+          }`}>
             <AlertDescription>{alertMessage}</AlertDescription>
           </Alert>
         )}
@@ -145,25 +147,91 @@ const SidebarItem = ({ icon: Icon, label, page, currentPage, setCurrentPage }) =
   </div>
 );
 
-const Header = ({ user, onLogout }) => (
-  <header className="bg-white shadow-md p-4">
-    <div className="flex justify-between items-center">
-      <div className="flex items-center">
-        <h2 className="text-xl font-semibold">Welcome, {user.username}</h2>
-      </div>
-      <div className="flex items-center space-x-4">
-        <Bell className="text-gray-600 cursor-pointer" />
-        <div className="flex items-center cursor-pointer" onClick={onLogout}>
-          <LogOut className="text-gray-600" />
-          <span className="ml-2">Logout</span>
+const Header = ({ user, onLogout }) => {
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/transactions', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (response.ok) {
+        const transactions = await response.json();
+        // Get recent transactions (last 24 hours)
+        const recentTransactions = transactions.filter(t => {
+          const transactionDate = new Date(t.created_at);
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          return transactionDate > yesterday;
+        });
+        setNotifications(recentTransactions);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    }
+  };
+
+  return (
+    <header className="bg-white shadow-md p-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center">
+          <h2 className="text-xl font-semibold">Welcome, {user.username}</h2>
+          <span className="ml-2 text-gray-500">(ID: {user.id})</span>
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="relative">
+            <div className="relative" onClick={() => setShowNotifications(!showNotifications)}>
+              <Bell className="text-gray-600 cursor-pointer" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {notifications.length}
+                </span>
+              )}
+            </div>
+            
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg z-50">
+                <div className="p-4">
+                  <h3 className="text-lg font-semibold mb-2">Recent Transactions</h3>
+                  <div className="space-y-2">
+                    {notifications.map(transaction => (
+                      <div key={transaction.id} className="p-2 hover:bg-gray-50 rounded">
+                        <p className="text-sm">
+                          {transaction.sender_id === user.id ? 'Sent' : 'Received'} ${transaction.amount}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(transaction.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                    {notifications.length === 0 && (
+                      <p className="text-sm text-gray-500">No recent transactions</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center cursor-pointer" onClick={onLogout}>
+            <LogOut className="text-gray-600" />
+            <span className="ml-2">Logout</span>
+          </div>
         </div>
       </div>
-    </div>
-  </header>
-);
+    </header>
+  );
+};
 
 const Dashboard = ({ user, onTransferSuccess }) => {
   const [transactionCount, setTransactionCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     const fetchTransactionCount = async () => {
@@ -176,6 +244,14 @@ const Dashboard = ({ user, onTransferSuccess }) => {
         if (response.ok) {
           const transactions = await response.json();
           setTransactionCount(transactions.length);
+          // Count unread notifications (transactions in the last 24 hours)
+          const recentTransactions = transactions.filter(t => {
+            const transactionDate = new Date(t.created_at);
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return transactionDate > yesterday;
+          });
+          setUnreadNotifications(recentTransactions.length);
         }
       } catch (error) {
         console.error('Failed to fetch transactions:', error);
@@ -188,10 +264,11 @@ const Dashboard = ({ user, onTransferSuccess }) => {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <DashboardCard title="User ID" value={user.id} icon={User} />
         <DashboardCard title="Current Balance" value={`$${user.balance.toFixed(2)}`} icon={DollarSign} />
         <DashboardCard title="Total Transactions" value={transactionCount} icon={Activity} />
-        <DashboardCard title="Notifications" value="3" icon={Bell} />
+        <DashboardCard title="Notifications" value={unreadNotifications} icon={Bell} />
       </div>
       
       <div className="bg-white rounded-lg shadow-md p-6">
