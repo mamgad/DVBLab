@@ -76,6 +76,25 @@ This project helps you master:
    - Secure logging practices
    - Transaction integrity
 
+## 🚀 Module Index
+
+Detailed course materials can be found in the following files:
+
+| Module | Description | Link |
+|--------|-------------|------|
+| 0. Methodology | Learn systematic approaches to security assessment and code review | [📘 Module 0](course/modules/00_methodology.md) |
+| 1. SQL Injection | Understanding and exploiting SQL injection vulnerabilities | [📘 Module 1](course/modules/01_sql_injection.md) |
+| 2. Auth & Authz | Authentication and authorization vulnerabilities | [📘 Module 2](course/modules/02_auth_and_authz.md) |
+| 3. Input Validation | Input validation and sanitization techniques | [📘 Module 3](course/modules/03_input_validation.md) |
+
+Each module contains:
+- Theoretical background
+- Vulnerable code examples
+- Exploitation techniques
+- Prevention methods
+- Hands-on exercises
+- Additional resources
+
 ## 🚀 Quick Start
 
 ### Prerequisites
