@@ -236,8 +236,8 @@ We welcome contributions! Please:
 
 ### External Resources
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Flask Security](https://flask.palletsprojects.com/en/2.0.x/security/)
-- [React Security](https://reactjs.org/docs/security.html)
+- [Flask Security](https://flask.palletsprojects.com/en/stable/web-security/)
+
 
 
 ## 🙏 Acknowledgments
