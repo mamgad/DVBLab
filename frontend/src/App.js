@@ -124,7 +124,7 @@ const App = () => {
 const Sidebar = ({ currentPage, setCurrentPage }) => (
   <div className="w-64 bg-gray-800 min-h-screen p-4">
     <div className="mb-8">
-      <h1 className="text-white text-2xl font-bold">VulnerableBank</h1>
+      <h1 className="text-white text-2xl font-bold">DVB Lab</h1>
     </div>
     <nav>
       <SidebarItem icon={Activity} label="Dashboard" page="dashboard" currentPage={currentPage} setCurrentPage={setCurrentPage} />

