@@ -1,211 +1,75 @@
-# DVBank Lab: Hands-on Web Security with Python & React
-## A Practical Guide to Web Application Security
+# DVBank Lab Course Materials
 
-This repository contains a deliberately vulnerable banking application designed for learning secure code review and web application security. It serves as a practical learning environment where developers and security professionals can explore common security vulnerabilities, understand their impact, and learn how to fix them.
+Welcome to the DVBank Lab course materials. This directory contains comprehensive modules covering various aspects of web application security, with a focus on banking applications.
 
-## Project Overview
+## 📚 Course Index
 
-### Purpose
-The project aims to provide hands-on experience with:
-- Identifying security vulnerabilities in real-world code
-- Understanding attack vectors and exploitation techniques
-- Learning secure coding practices
-- Implementing security fixes
-- Conducting thorough security assessments
+| Module | Description | Topics Covered |
+|--------|-------------|----------------|
+| [📘 Module 0: Methodology](modules/00_methodology.md) | Security Assessment Methodology | - Systematic review approaches<br>- Threat modeling techniques<br>- Risk assessment frameworks |
+| [📘 Module 1: SQL Injection](modules/01_sql_injection.md) | SQL Injection Vulnerabilities | - Understanding SQL injection<br>- Real-world exploitation<br>- Prevention techniques |
+| [📘 Module 2: Auth & Authz](modules/02_auth_and_authz.md) | Authentication & Authorization | - JWT security<br>- Session management<br>- Access control implementation |
+| [📘 Module 3: Input Validation](modules/03_input_validation.md) | Input Validation & Sanitization | - Data validation strategies<br>- Type conversion security<br>- Input sanitization techniques |
+| [📘 Module 4: API Security](modules/04_api_security.md) | API Security Best Practices | - CORS configuration<br>- Rate limiting<br>- Error handling |
+| [📘 Module 5: Secure Coding](modules/05_secure_coding.md) | Secure Coding Practices | - Password security<br>- Secure logging<br>- Transaction integrity |
 
-### Technology Stack
-- Backend: Python/Flask
-- Frontend: React/TailwindCSS
-- Database: SQLite
-- Authentication: JWT
-- Containerization: Docker
+## 📖 Module Structure
 
-## Course Structure
+Each module follows a consistent structure:
 
-0. Security Assessment Methodology
-   - Threat modeling approaches
-   - Source-to-sink analysis
-   - Risk assessment techniques
+1. **Theoretical Background**
+   - Core concepts
+   - Security principles
+   - Real-world implications
 
-1. SQL Injection Vulnerabilities
-   - Understanding SQL Injection
-   - Examples from our application
-   - Prevention techniques
+2. **Vulnerable Code Examples**
+   - Actual code from the banking application
+   - Common vulnerability patterns
+   - Security anti-patterns
 
-2. Authentication & Authorization
-   - JWT implementation issues
-   - Session management
-   - Access control problems
+3. **Exploitation Techniques**
+   - Step-by-step attack scenarios
+   - Proof of Concept examples
+   - Attack tools and methods
 
-3. Input Validation & Sanitization
-   - Transaction amount validation
-   - User input handling
-   - Data type conversion issues
+4. **Prevention Methods**
+   - Security best practices
+   - Code fixes
+   - Defensive programming techniques
 
-4. API Security
-   - CORS configuration
-   - Rate limiting
-   - Error handling
+5. **Hands-on Exercises**
+   - Practice problems
+   - Code review exercises
+   - Security challenges
 
-5. Secure Coding Practices
-   - Secure password handling
-   - Proper logging
-   - Transaction safety
+6. **Additional Resources**
+   - External references
+   - Tools and documentation
+   - Further reading
 
-## Installation Instructions
+## 🎯 Learning Path
 
-### Prerequisites
-- Python 3.9 or higher
-- Node.js 16 or higher
-- Docker and Docker Compose (optional)
-- Git
+For optimal learning, we recommend following the modules in order:
 
-### Option 1: Docker Installation (Recommended)
+1. Start with Module 0 to understand security assessment methodology
+2. Progress through Modules 1-3 for core security concepts
+3. Complete Modules 4-5 for advanced security practices
+4. Review and practice with the banking application
 
-#### Linux/macOS
-```bash
-# Clone the repository
-git clone https://github.com/mamgad/vulnerable-bank.git
-cd vulnerable-bank
+## 🛠️ Prerequisites
 
-# Start the application
-docker-compose up --build
-```
+- Basic understanding of Python and React
+- Familiarity with web applications
+- Basic knowledge of HTTP and APIs
+- Development environment setup
 
-#### Windows
-```powershell
-# Clone the repository
-git clone https://github.com/mamgad/vulnerable-bank.git
-cd vulnerable-bank
+## 📚 Additional Resources
 
-# Start the application
-docker-compose up --build
-```
-
-### Option 2: Manual Installation
-
-#### Linux/macOS
-```bash
-# Clone the repository
-git clone https://github.com/mamgad/vulnerable-bank.git
-cd vulnerable-bank
-
-# Backend setup
-cd backend
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-pip install -r requirements.txt
-python app.py &
-
-# Frontend setup
-cd ../frontend
-npm install
-npm start
-```
-
-#### Windows
-```powershell
-# Clone the repository
-git clone https://github.com/mamgad/vulnerable-bank.git
-cd vulnerable-bank
-
-# Backend setup
-cd backend
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
-
-# In a new terminal
-cd frontend
-npm install
-npm start
-```
-
-### Verifying Installation
-1. Backend API should be running on http://localhost:5000
-2. Frontend should be accessible at http://localhost:3000
-3. Test using provided credentials:
-   - Username: alice, Password: password123
-   - Username: bob, Password: password123
-
-## Project Structure
-```
-vulnerable-bank/
-├── backend/
-│   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── auth_routes.py
-│   │   └── transaction_routes.py
-│   ├── app.py
-│   ├── models.py
-│   ├── requirements.txt
-│   └── Dockerfile
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── App.js
-│   │   └── index.js
-│   ├── package.json
-│   └── Dockerfile
-└── docker-compose.yml
-```
-
-## Security Features to Explore
-1. Authentication System
-   - JWT implementation
-   - Password hashing
-   - Session management
-
-2. Transaction System
-   - Money transfers
-   - Balance management
-   - Transaction history
-
-3. User Management
-   - Registration
-   - Profile management
-   - Role-based access
-
-## Known Vulnerabilities (for educational purposes)
-1. SQL Injection in login functionality
-2. Insecure JWT implementation
-3. Missing input validation
-4. IDOR vulnerabilities
-5. Race conditions in transactions
-6. Weak password policies
-
-## Usage Guidelines
-1. **Local Use Only**: This application contains intentional vulnerabilities. Never deploy it to a public server.
-2. **Isolated Environment**: Run the application in an isolated development environment.
-3. **Educational Purpose**: Use the vulnerabilities to learn, not for malicious purposes.
-4. **Legal Disclaimer**: Users are responsible for how they use this application.
-
-## Contributing
-We welcome contributions! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-4. Follow secure coding guidelines
-
-## Support
-- Create an issue for bugs or feature requests
-- Join our community discussions
-- Check the course modules for detailed guidance
-
-## Additional Resources
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
 - [React Security Best Practices](https://reactjs.org/docs/security.html)
 - [Web Security Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
 
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+## ⚠️ Security Notice
 
-## Acknowledgments
-- OWASP Foundation
-- Security research community
-- Open source contributors
-
-## Warning
-This application contains intentional security vulnerabilities for educational purposes. DO NOT use any of this code in production environments. 
+The code examples in these modules contain intentional vulnerabilities for educational purposes. Never use this code in production environments. 
