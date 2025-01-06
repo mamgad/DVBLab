@@ -3,6 +3,8 @@
 
 Welcome to DVBank Lab, an intentionally vulnerable banking application designed for learning secure code review and web application security. This project serves as both a hands-on learning environment and a comprehensive course in identifying, understanding, and fixing security vulnerabilities.
 
+> Inspired by [DVWA (Damn Vulnerable Web Application)](https://github.com/digininja/DVWA), this project aims to provide a modern, full-stack vulnerable application specifically focused on banking security scenarios.
+
 ## 🎯 Demo
 
 ### Dashboard
@@ -241,6 +243,9 @@ We welcome contributions! Please:
 
 ## 🙏 Acknowledgments
 - OWASP Foundation
+- [DVWA](https://github.com/digininja/DVWA) - The original inspiration for this project
+- Security research community
+- Open source contributors
 
 ## ⚠️ Disclaimer
 This application contains intentional security vulnerabilities for educational purposes. The creators are not responsible for any misuse or damage caused by this application. Use at your own risk and only in a controlled, isolated environment. 
