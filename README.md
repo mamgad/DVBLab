@@ -1,7 +1,7 @@
-# DVB Lab: Hands-on Web Security with Python & React
+# DVBank Lab: Hands-on Web Security with Python & React
 ## A Practical Guide to Secure Code Review and Web Application Security
 
-Welcome to DVB Lab, an intentionally vulnerable banking application designed for learning secure code review and web application security. This project serves as both a hands-on learning environment and a comprehensive course in identifying, understanding, and fixing security vulnerabilities.
+Welcome to DVBank Lab, an intentionally vulnerable banking application designed for learning secure code review and web application security. This project serves as both a hands-on learning environment and a comprehensive course in identifying, understanding, and fixing security vulnerabilities.
 
 ## 🎯 Educational Objectives
 
