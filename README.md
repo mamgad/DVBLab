@@ -3,6 +3,18 @@
 
 Welcome to DVBank Lab, an intentionally vulnerable banking application designed for learning secure code review and web application security. This project serves as both a hands-on learning environment and a comprehensive course in identifying, understanding, and fixing security vulnerabilities.
 
+## 🎯 Demo
+
+### Dashboard
+![Dashboard Demo](docs/images/dashboard.png)
+
+### Transaction System
+![Transactions Demo](docs/images/transactions.png)
+
+### Profile Features
+![Profile Features](docs/images/profile.png)
+
+
 ## 🎯 Educational Objectives
 
 This project helps you master:
