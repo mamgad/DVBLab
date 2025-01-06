@@ -88,6 +88,8 @@ Detailed course materials can be found in the following files:
 | 1. SQL Injection | Understanding and exploiting SQL injection vulnerabilities | [📘 Module 1](course/modules/01_sql_injection.md) |
 | 2. Auth & Authz | Authentication and authorization vulnerabilities | [📘 Module 2](course/modules/02_auth_and_authz.md) |
 | 3. Input Validation | Input validation and sanitization techniques | [📘 Module 3](course/modules/03_input_validation.md) |
+| 4. API Security | CORS, rate limiting, and API security best practices | [📘 Module 4](course/modules/04_api_security.md) |
+| 5. Secure Coding | Password security, logging, and transaction integrity | [📘 Module 5](course/modules/05_secure_coding.md) |
 
 Each module contains:
 - Theoretical background
