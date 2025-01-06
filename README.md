@@ -232,8 +232,7 @@ We welcome contributions! Please:
 
 ### Documentation
 - [Course Modules](./course/README.md)
-- [Installation Guide](./docs/installation.md)
-- [Security Guide](./docs/security.md)
+- [Installation Guide](#-quick-start)
 
 ### External Resources
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
