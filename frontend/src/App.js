@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from './components/ui/alert';
 import TransferForm from './components/TransferForm';
 import TransactionList from './components/TransactionList';
 import LoginPage from './components/LoginPage';
+import { API_BASE_URL } from './config';
 import './index.css';
 
 const App = () => {
@@ -21,7 +22,7 @@ const App = () => {
 
   const fetchUserData = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/me', {
+      const response = await fetch(`${API_BASE_URL}/api/me`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -39,7 +40,7 @@ const App = () => {
 
   const handleLogin = async (username, password) => {
     try {
-      const response = await fetch('http://localhost:5000/api/login', {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -60,7 +61,7 @@ const App = () => {
 
   const handleLogout = async () => {
     try {
-      await fetch('http://localhost:5000/api/logout', {
+      await fetch(`${API_BASE_URL}/api/logout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -157,7 +158,7 @@ const Header = ({ user, onLogout }) => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/transactions', {
+      const response = await fetch(`${API_BASE_URL}/api/transactions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -236,7 +237,7 @@ const Dashboard = ({ user, onTransferSuccess }) => {
   useEffect(() => {
     const fetchTransactionCount = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/transactions', {
+        const response = await fetch(`${API_BASE_URL}/api/transactions`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -300,30 +301,30 @@ const Profile = ({ user }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/profile`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setProfile(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     fetchProfile();
   }, []);
 
-  const fetchProfile = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/profile', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProfile(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch profile:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSave = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/profile', {
+      const response = await fetch(`${API_BASE_URL}/api/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -334,8 +335,6 @@ const Profile = ({ user }) => {
 
       if (response.ok) {
         setIsEditing(false);
-        // Refresh profile data
-        fetchProfile();
       }
     } catch (error) {
       console.error('Failed to update profile:', error);

@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from models import db, User, Transaction
 from routes.auth_routes import auth_bp
@@ -14,8 +14,17 @@ app.config['SECRET_KEY'] = 'supersecret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vulnerable_bank.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Setup CORS
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+# Intentionally vulnerable CORS configuration - DO NOT USE IN PRODUCTION
+@app.after_request
+def after_request(response):
+    # Reflect any origin in CORS headers - INSECURE!
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # Initialize extensions
 db.init_app(app)

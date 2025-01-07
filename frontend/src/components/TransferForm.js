@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 const TransferForm = ({ onSuccess }) => {
   const [receiverId, setReceiverId] = useState('');
@@ -11,14 +12,14 @@ const TransferForm = ({ onSuccess }) => {
     setError('');
 
     try {
-      const response = await fetch('http://localhost:5000/api/transfer', {
+      const response = await fetch(`${API_BASE_URL}/api/transfer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          receiver_id: parseInt(receiverId),
+          to_user_id: parseInt(receiverId),
           amount: parseFloat(amount),
           description
         })

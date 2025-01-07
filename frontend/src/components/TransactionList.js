@@ -1,34 +1,35 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 const TransactionList = ({ userId }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
+    const fetchTransactions = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/transactions?user_id=${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setTransactions(data);
+        } else {
+          setError('Failed to load transactions');
+        }
+      } catch (error) {
+        setError('Failed to load transactions');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchTransactions();
   }, [userId]);
-
-  const fetchTransactions = async () => {
-    try {
-      const response = await fetch(`http://localhost:5000/api/transactions?user_id=${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setTransactions(data);
-      } else {
-        setError('Failed to load transactions');
-      }
-    } catch (error) {
-      setError('Failed to load transactions');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return <div className="text-center py-4">Loading transactions...</div>;
