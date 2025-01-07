@@ -188,19 +188,41 @@ def get_transaction(transaction_id):
     cursor.execute(query, (transaction_id,))
 ```
 
-Authentication Bypass:
+### Authentication Bypass
+Here's an example of authentication bypass vulnerability and its fix:
+
 ```python
-# Vulnerable session validation
-def validate_session(session_id):
-    if session_id in active_sessions:  # Race condition vulnerability
-        return True
+# Vulnerable Implementation
+@app.route('/api/account/<account_id>')
+def get_account(account_id):
+    # Vulnerability: Lack of authentication and authorization controls
+    return jsonify(get_account_details(account_id))
+
+# Secure Implementation
+@app.route('/api/account/<account_id>')
+@require_auth  # <-- Authentication: Verifies JWT token and user session
+def get_account(account_id):
+    try:
+        # <-- Authorization: Verifies if the current user has rights to access this account
+        if not current_user.can_access_account(account_id):
+            return jsonify({'error': 'Unauthorized'}), 403
+            
+        # <-- Safe data access: Uses ORM to prevent SQL injection
+        account = Account.query.get_or_404(account_id)
+        return jsonify(account.to_dict())
         
-# Secure implementation
-def validate_session(session_id):
-    with lock:
-        if session_id in active_sessions and not is_expired(session_id):
-            return True
+    except Exception as e:
+        # <-- Audit: Logs unauthorized access attempts
+        audit_log.error(f"Account access error: {account_id}")
+        return jsonify({'error': 'Access denied'}), 401
 ```
+
+Key Security Controls:
+1. Authentication check (@require_auth)
+2. Authorization validation (can_access_account)
+3. Safe database queries (query.get_or_404)
+4. Audit logging
+5. Proper error handling
 
 ### 9.2 Proof of Concept Development
 Methodology for creating PoCs in our banking environment:
