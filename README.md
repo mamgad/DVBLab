@@ -111,8 +111,8 @@ Each module contains:
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/vulnerable-bank.git
-cd vulnerable-bank
+git clone https://github.com/mamgad/DVBLab.git
+cd DVBLab
 
 # Launch application
 docker-compose up --build
@@ -122,7 +122,11 @@ docker-compose up --build
 
 #### Backend (Python/Flask)
 ```bash
-# Setup Python environment
+# Clone repository
+git clone https://github.com/mamgad/DVBLab.git
+cd DVBLab
+
+# Backend setup
 cd backend
 python -m venv venv
 
