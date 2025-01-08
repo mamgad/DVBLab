@@ -50,24 +50,107 @@ def init_db():
         
         # Create test users if they don't exist
         test_users = [
-            ('alice', 'password123', 5000.00),
-            ('bob', 'password123', 3000.00),
-            ('charlie', 'password123', 2500.00),
-            ('dave', 'password123', 4000.00),
-            ('eve', 'password123', 1500.00),
-            ('frank', 'password123', 3500.00)
+            {
+                'username': 'alice',
+                'password': 'password123',
+                'balance': 5000.00,
+                'email': 'alice@bank.com',
+                'profile': {
+                    'fullName': 'Alice Johnson',
+                    'phone': '+1-555-0123',
+                    'address': '123 Secure St, Cryptoville, CV 94024',
+                    'email': 'alice@bank.com',
+                    'dob': '1990-03-15',
+                    'ssn': '123-45-6789'  # Intentionally exposed sensitive data
+                }
+            },
+            {
+                'username': 'bob',
+                'password': 'password123',
+                'balance': 3000.00,
+                'email': 'bob@bank.com',
+                'profile': {
+                    'fullName': 'Bob Smith',
+                    'phone': '+1-555-0456',
+                    'address': '456 Blockchain Ave, Cryptoville, CV 94024',
+                    'email': 'bob@bank.com',
+                    'dob': '1985-07-22',
+                    'ssn': '987-65-4321'  # Intentionally exposed sensitive data
+                }
+            },
+            {
+                'username': 'charlie',
+                'password': 'password123',
+                'balance': 2500.00,
+                'email': 'charlie@bank.com',
+                'profile': {
+                    'fullName': 'Charlie Brown',
+                    'phone': '+1-555-0789',
+                    'address': '789 Privacy Lane, Cryptoville, CV 94024',
+                    'email': 'charlie@bank.com',
+                    'dob': '1988-11-30',
+                    'ssn': '456-78-9012'  # Intentionally exposed sensitive data
+                }
+            },
+            {
+                'username': 'dave',
+                'password': 'password123',
+                'balance': 4000.00,
+                'email': 'dave@bank.com',
+                'profile': {
+                    'fullName': 'Dave Wilson',
+                    'phone': '+1-555-9012',
+                    'address': '321 Token St, Cryptoville, CV 94024',
+                    'email': 'dave@bank.com',
+                    'dob': '1992-05-18',
+                    'ssn': '234-56-7890'
+                }
+            },
+            {
+                'username': 'eve',
+                'password': 'password123',
+                'balance': 1500.00,
+                'email': 'eve@bank.com',
+                'profile': {
+                    'fullName': 'Eve Anderson',
+                    'phone': '+1-555-3456',
+                    'address': '654 Hash Ave, Cryptoville, CV 94024',
+                    'email': 'eve@bank.com',
+                    'dob': '1987-09-25',
+                    'ssn': '345-67-8901'
+                }
+            },
+            {
+                'username': 'frank',
+                'password': 'password123',
+                'balance': 3500.00,
+                'email': 'frank@bank.com',
+                'profile': {
+                    'fullName': 'Frank Davis',
+                    'phone': '+1-555-6789',
+                    'address': '987 Block St, Cryptoville, CV 94024',
+                    'email': 'frank@bank.com',
+                    'dob': '1983-12-08',
+                    'ssn': '567-89-0123'
+                }
+            }
         ]
         
         users = {}
-        for username, password, balance in test_users:
-            if not User.query.filter_by(username=username).first():
-                user = User(username=username, balance=Decimal(str(balance)))
-                user.set_password(password)
+        for user_data in test_users:
+            if not User.query.filter_by(username=user_data['username']).first():
+                user = User(
+                    username=user_data['username'],
+                    email=user_data['email'],
+                    balance=Decimal(str(user_data['balance']))
+                )
+                user.set_password(user_data['password'])
+                user.set_profile(user_data['profile'])
                 db.session.add(user)
                 db.session.commit()
-                users[username] = user
+                users[user_data['username']] = user
             else:
-                users[username] = User.query.filter_by(username=username).first()
+                users[user_data['username']] = User.query.filter_by(username=user_data['username']).first()
 
         # Create some sample transactions
         sample_transactions = [
@@ -108,8 +191,8 @@ def init_db():
                 # Update balances
                 users[sender].balance -= Decimal(str(amount))
                 users[receiver].balance += Decimal(str(amount))
-            
-            db.session.commit()
+
+        db.session.commit()
 
 if __name__ == '__main__':
     init_db()
