@@ -1,4 +1,4 @@
-# Module 7: Application Reconnaissance & Attack Surface Mapping
+# Module 1: Application Reconnaissance & Attack Surface Mapping
 
 ## Learning Objectives
 - Learn how to systematically explore a banking application

@@ -1,4 +1,4 @@
-# Module 3: Input Validation Vulnerabilities
+# Module 4: Input Validation Vulnerabilities
 
 ## 🎓 For Beginners: Understanding Input Validation
 
