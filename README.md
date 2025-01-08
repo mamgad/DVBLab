@@ -46,6 +46,21 @@ This project helps you master:
 - Git Version Control
 - Development Tools Integration
 
+## 📚 Module Index
+
+Detailed course materials can be found in the following files:
+
+| Module | Description | Link |
+|--------|-------------|------|
+| 0. Methodology | Learn systematic approaches to security assessment and code review | [📘 Module 0](course/modules/00_methodology.md) |
+| 1. Application Reconnaissance | Understanding application structure and attack surface mapping | [📘 Module 1](course/modules/01_recon_and_mapping.md) |
+| 2. Auth & Authz | Authentication and authorization vulnerabilities | [📘 Module 2](course/modules/02_auth_and_authz.md) |
+| 3. SQL Injection | Understanding and exploiting SQL injection vulnerabilities | [📘 Module 3](course/modules/03_sql_injection.md) |
+| 4. Input Validation | Input validation and sanitization techniques | [📘 Module 4](course/modules/04_input_validation.md) |
+| 5. API Security | CORS, rate limiting, and API security best practices | [📘 Module 5](course/modules/05_api_security.md) |
+| 6. Secure Coding | Password security, logging, and transaction integrity | [📘 Module 6](course/modules/06_secure_coding.md) |
+| 7. Static Analysis | Automated vulnerability detection with Semgrep | [📘 Module 7](course/modules/07_static_analysis.md) |
+
 ## 📚 Course Modules
 
 1. [Methodology](course/modules/00_methodology.md)
@@ -64,20 +79,6 @@ Each module contains:
 - Prevention methods
 - Hands-on exercises
 - Additional resources
-
-## 🚀 Module Index
-
-Detailed course materials can be found in the following files:
-
-| Module | Description | Link |
-|--------|-------------|------|
-| 0. Methodology | Learn systematic approaches to security assessment and code review | [📘 Module 0](course/modules/00_methodology.md) |
-| 1. SQL Injection | Understanding and exploiting SQL injection vulnerabilities | [📘 Module 1](course/modules/01_sql_injection.md) |
-| 2. Auth & Authz | Authentication and authorization vulnerabilities | [📘 Module 2](course/modules/02_auth_and_authz.md) |
-| 3. Input Validation | Input validation and sanitization techniques | [📘 Module 3](course/modules/03_input_validation.md) |
-| 4. API Security | CORS, rate limiting, and API security best practices | [📘 Module 4](course/modules/04_api_security.md) |
-| 5. Secure Coding | Password security, logging, and transaction integrity | [📘 Module 5](course/modules/05_secure_coding.md) |
-| 6. Static Analysis | Automated vulnerability detection with Semgrep | [📘 Module 6](course/modules/06_static_analysis.md) |
 
 ## 🚀 Quick Start
 
