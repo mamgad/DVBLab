@@ -48,35 +48,20 @@ This project helps you master:
 
 ## 📚 Course Modules
 
-0. **Security Assessment Methodology**
-   - Systematic security review approaches
-   - Threat modeling techniques
-   - Risk assessment frameworks
+1. [SQL Injection](course/modules/01_sql_injection.md)
+2. [Authentication & Authorization](course/modules/02_auth_and_authz.md)
+3. [Input Validation](course/modules/03_input_validation.md)
+4. [API Security](course/modules/04_api_security.md)
+5. [Secure Coding](course/modules/05_secure_coding.md)
+6. [Static Analysis with Semgrep](course/modules/06_static_analysis.md)
 
-1. **SQL Injection Vulnerabilities**
-   - Understanding SQL injection vectors
-   - Real-world exploitation examples
-   - Implementation of secure queries
-
-2. **Authentication & Authorization**
-   - JWT security considerations
-   - Session management best practices
-   - Access control implementation
-
-3. **Input Validation & Sanitization**
-   - Data validation strategies
-   - Type conversion security
-   - Input sanitization techniques
-
-4. **API Security**
-   - CORS security configuration
-   - Rate limiting implementation
-   - Secure error handling
-
-5. **Secure Coding Practices**
-   - Password security
-   - Secure logging practices
-   - Transaction integrity
+Each module contains:
+- Theoretical background
+- Vulnerable code examples
+- Exploitation techniques
+- Prevention methods
+- Hands-on exercises
+- Additional resources
 
 ## 🚀 Module Index
 
@@ -90,14 +75,7 @@ Detailed course materials can be found in the following files:
 | 3. Input Validation | Input validation and sanitization techniques | [📘 Module 3](course/modules/03_input_validation.md) |
 | 4. API Security | CORS, rate limiting, and API security best practices | [📘 Module 4](course/modules/04_api_security.md) |
 | 5. Secure Coding | Password security, logging, and transaction integrity | [📘 Module 5](course/modules/05_secure_coding.md) |
-
-Each module contains:
-- Theoretical background
-- Vulnerable code examples
-- Exploitation techniques
-- Prevention methods
-- Hands-on exercises
-- Additional resources
+| 6. Static Analysis | Automated vulnerability detection with Semgrep | [📘 Module 6](course/modules/06_static_analysis.md) |
 
 ## 🚀 Quick Start
 

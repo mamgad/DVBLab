@@ -12,6 +12,7 @@ Welcome to the DVBank Lab course materials. This directory contains comprehensiv
 | [📘 Module 3: Input Validation](modules/03_input_validation.md) | Input Validation & Sanitization | - Data validation strategies<br>- Type conversion security<br>- Input sanitization techniques |
 | [📘 Module 4: API Security](modules/04_api_security.md) | API Security Best Practices | - CORS configuration<br>- Rate limiting<br>- Error handling |
 | [📘 Module 5: Secure Coding](modules/05_secure_coding.md) | Secure Coding Practices | - Password security<br>- Secure logging<br>- Transaction integrity |
+| [📘 Module 6: Static Analysis](modules/06_static_analysis.md) | Automated Security Analysis | - Semgrep configuration<br>- Vulnerability detection<br>- Code pattern analysis |
 
 ## 📖 Module Structure
 
@@ -53,7 +54,7 @@ For optimal learning, we recommend following the modules in order:
 
 1. Start with Module 0 to understand security assessment methodology
 2. Progress through Modules 1-3 for core security concepts
-3. Complete Modules 4-5 for advanced security practices
+3. Complete Modules 4-6 for advanced security practices
 4. Review and practice with the banking application
 
 ## 🛠️ Prerequisites
