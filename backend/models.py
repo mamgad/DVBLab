@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
+import hashlib
 import json
 from datetime import datetime
 from decimal import Decimal
@@ -21,10 +21,10 @@ class User(db.Model):
     received_transactions = db.relationship('Transaction', foreign_keys='Transaction.receiver_id', backref='receiver', lazy=True)
 
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password_hash = hashlib.md5(password.encode()).hexdigest()
 
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        return self.password_hash == hashlib.md5(password.encode()).hexdigest()
 
     def get_profile(self):
         return json.loads(self.profile) if self.profile else {}
