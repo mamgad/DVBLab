@@ -48,12 +48,14 @@ This project helps you master:
 
 ## 📚 Course Modules
 
-1. [SQL Injection](course/modules/01_sql_injection.md)
-2. [Authentication & Authorization](course/modules/02_auth_and_authz.md)
-3. [Input Validation](course/modules/03_input_validation.md)
-4. [API Security](course/modules/04_api_security.md)
-5. [Secure Coding](course/modules/05_secure_coding.md)
-6. [Static Analysis with Semgrep](course/modules/06_static_analysis.md)
+1. [Methodology](course/modules/00_methodology.md)
+2. [Application Reconnaissance](course/modules/01_recon_and_mapping.md)
+3. [Authentication & Authorization](course/modules/02_auth_and_authz.md)
+4. [SQL Injection](course/modules/03_sql_injection.md)
+5. [Input Validation](course/modules/04_input_validation.md)
+6. [API Security](course/modules/05_api_security.md)
+7. [Secure Coding](course/modules/06_secure_coding.md)
+8. [Static Analysis with Semgrep](course/modules/07_static_analysis.md)
 
 Each module contains:
 - Theoretical background
