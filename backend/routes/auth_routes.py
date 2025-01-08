@@ -129,4 +129,17 @@ def update_profile(current_user):
             'phone': profile_data['phone'],
             'address': profile_data['address']
         }
-    }) 
+    })
+
+@auth_bp.route('/api/update-password', methods=['POST'])
+def update_password():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    new_password = data.get('new_password')
+    
+    user = User.query.get(user_id)
+    if user:
+        user.set_password(new_password)
+        db.session.commit()
+        return jsonify({'message': 'Password updated'})
+    return jsonify({'error': 'User not found'}), 404 

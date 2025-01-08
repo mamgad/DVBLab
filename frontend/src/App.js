@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from './components/ui/alert';
 import TransferForm from './components/TransferForm';
 import TransactionList from './components/TransactionList';
 import LoginPage from './components/LoginPage';
+import PasswordUpdate from './components/PasswordUpdate';
 import { API_BASE_URL } from './config';
 import './index.css';
 
@@ -77,6 +78,11 @@ const App = () => {
     setAlertMessage(message);
     setShowAlert(true);
     setTimeout(() => setShowAlert(false), 3000);
+  };
+
+  const handleTransferSuccess = () => {
+    fetchUserData();
+    showAlertMessage('Transfer successful');
   };
 
   if (!user) {
@@ -454,16 +460,19 @@ const Settings = () => {
 
           <div>
             <h3 className="text-lg font-medium text-gray-900 mb-4">Security</h3>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={settings.twoFactorAuth}
-                onChange={(e) => handleChange('twoFactorAuth', e.target.checked)}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label className="ml-2 block text-sm text-gray-900">
-                Two-Factor Authentication
-              </label>
+            <div className="space-y-4">
+              <PasswordUpdate />
+              <div className="flex items-center mt-4">
+                <input
+                  type="checkbox"
+                  checked={settings.twoFactorAuth}
+                  onChange={(e) => handleChange('twoFactorAuth', e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-900">
+                  Two-Factor Authentication
+                </label>
+              </div>
             </div>
           </div>
 
