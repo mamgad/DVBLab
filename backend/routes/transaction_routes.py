@@ -10,11 +10,11 @@ transaction_bp = Blueprint('transaction', __name__)
 @token_required
 def transfer(current_user):
     data = request.get_json()
-    receiver_id = data.get('receiver_id')
+    to_user_id = data.get('to_user_id')
     amount = Decimal(str(data.get('amount', 0)))
     description = data.get('description', '')
     
-    receiver = User.query.get(receiver_id)
+    receiver = User.query.get(to_user_id)
     
     if not receiver:
         return jsonify({'error': 'Receiver not found'}), 404
