@@ -3,6 +3,7 @@ Flask-SQLAlchemy==2.5.1
 SQLAlchemy==1.4.23
 Flask-Login==0.5.0
 Flask-CORS==3.0.10
-PyJWT==2.3.0
+PyJWT==2.1.0
 Werkzeug==2.0.1
+PyYAML==5.3.1
 python-dotenv==0.19.0 
