@@ -27,6 +27,8 @@ def transfer(current_user):
         status='completed',
         completed_at=datetime.utcnow()
     )
+    if current_user.balance < amount:
+        return jsonify({'error': 'Insufficient balance'}), 400  
     
     current_user.balance -= amount
     receiver.balance += amount
@@ -44,24 +46,19 @@ def transfer(current_user):
 def get_transactions(current_user):
     user_id = request.args.get('user_id', current_user.id)
     
-    # Add a basic security check
-    if int(user_id) != current_user.id:
-        return jsonify({'error': 'Unauthorized to view other users transactions'}), 403
-    
-    transactions = Transaction.query.filter(
-        (Transaction.sender_id == user_id) | 
-        (Transaction.receiver_id == user_id)
-    ).order_by(Transaction.created_at.desc()).all()
+    query = f'SELECT * FROM "Transaction" WHERE sender_id = {user_id} OR receiver_id = {user_id} ORDER BY created_at DESC'
+    result = db.session.execute(query)
+    transactions = result.fetchall()
     
     return jsonify([{
-        'id': t.id,
-        'sender_id': t.sender_id,
-        'receiver_id': t.receiver_id,
-        'amount': float(t.amount),
-        'description': t.description,
-        'status': t.status,
-        'created_at': t.created_at.isoformat(),
-        'completed_at': t.completed_at.isoformat() if t.completed_at else None
+        'id': t[0],
+        'sender_id': t[1],
+        'receiver_id': t[2], 
+        'amount': float(t[3]),
+        'description': t[4],
+        'status': t[5],
+        'created_at': t[6],
+        'completed_at': t[7]
     } for t in transactions])
 
 @transaction_bp.route('/api/transactions/<int:transaction_id>', methods=['GET'])

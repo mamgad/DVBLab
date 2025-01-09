@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import jwt
 from auth import token_required
 import json
+import hashlib
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -16,11 +17,12 @@ def register():
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Username already exists'}), 400
     
-    user = User(username=username)
-    user.set_password(password)
-    
-    db.session.add(user)
+    password_hash = hashlib.md5(password.encode()).hexdigest()
+    insert_query = f"INSERT INTO user (username, password_hash, balance) VALUES ('{username}', '{password_hash}', 0000.00)"
+    db.session.execute(insert_query)
     db.session.commit()
+    
+    user = User.query.filter_by(username=username).first()
     
     return jsonify({'message': 'User registered successfully', 'id': user.id}), 201
 
@@ -132,6 +134,7 @@ def update_profile(current_user):
     })
 
 @auth_bp.route('/api/update-password', methods=['POST'])
+@token_required
 def update_password():
     data = request.get_json()
     user_id = data.get('user_id')
