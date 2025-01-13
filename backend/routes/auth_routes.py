@@ -136,7 +136,7 @@ def update_profile(current_user):
 
 @auth_bp.route('/api/update-password', methods=['POST'])
 @token_required
-def update_password():
+def update_password(current_user):
     data = request.get_json()
     user_id = data.get('user_id')
     new_password = data.get('new_password')
