@@ -52,14 +52,15 @@ Detailed course materials can be found in the following files:
 
 | Module | Description | Link |
 |--------|-------------|------|
-| 0. Methodology | Learn systematic approaches to security assessment and code review | [📘 Module 0](course/modules/00_methodology.md) |
-| 1. Application Reconnaissance | Understanding application structure and attack surface mapping | [📘 Module 1](course/modules/01_recon_and_mapping.md) |
-| 2. Auth & Authz | Authentication and authorization vulnerabilities | [📘 Module 2](course/modules/02_auth_and_authz.md) |
-| 3. SQL Injection | Understanding and exploiting SQL injection vulnerabilities | [📘 Module 3](course/modules/03_sql_injection.md) |
-| 4. Input Validation | Input validation and sanitization techniques | [📘 Module 4](course/modules/04_input_validation.md) |
-| 5. API Security | CORS, rate limiting, and API security best practices | [📘 Module 5](course/modules/05_api_security.md) |
-| 6. Secure Coding | Password security, logging, and transaction integrity | [📘 Module 6](course/modules/06_secure_coding.md) |
-| 7. Static Analysis | Automated vulnerability detection with Semgrep | [📘 Module 7](course/modules/07_static_analysis.md) |
+| 0. Methodology | Secure Code Review Methodology | [📘 Module 0](course/modules/00_methodology.md) |
+| 1. Application Reconnaissance | Application Reconnaissance & Attack Surface Mapping | [📘 Module 1](course/modules/01_recon_and_mapping.md) |
+| 2. Software Composition Analysis | Dependency Security Analysis | [📘 Module 2](course/modules/02_sca.md) |
+| 3. Authentication & Authorization | Authentication & Authorization Vulnerabilities | [📘 Module 3](course/modules/03_auth_and_authz.md) |
+| 4. SQL Injection | SQL Injection Vulnerabilities | [📘 Module 4](course/modules/04_sql_injection.md) |
+| 5. Input Validation | Input Validation Vulnerabilities | [📘 Module 5](course/modules/05_input_validation.md) |
+| 6. API Security | API Security Best Practices | [📘 Module 6](course/modules/06_api_security.md) |
+| 7. Secure Coding | Secure Coding Practices | [📘 Module 7](course/modules/07_secure_coding.md) |
+| 8. Static Analysis | Automated Static Analysis with Semgrep | [📘 Module 8](course/modules/08_static_analysis.md) |
 
 
 Each module contains:
