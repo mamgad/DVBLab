@@ -1,4 +1,4 @@
-# Module 5: API Security
+# Module 6: API Security
 
 ## Overview
 

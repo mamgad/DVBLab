@@ -1,4 +1,4 @@
-# Module 3: SQL Injection Vulnerabilities
+# Module 4: SQL Injection Vulnerabilities
 
 ## 🎓 For Beginners: Understanding SQL Injection
 

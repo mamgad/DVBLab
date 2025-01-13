@@ -8,12 +8,13 @@ Welcome to the DVBank Lab course materials. This directory contains comprehensiv
 |--------|-------------|----------------|
 | [📘 Module 0: Methodology](modules/00_methodology.md) | Security Assessment Methodology | - Systematic review approaches<br>- Threat modeling techniques<br>- Risk assessment frameworks |
 | [📘 Module 1: Application Reconnaissance](modules/01_recon_and_mapping.md) | Understanding Application Structure | - Application exploration<br>- Code structure analysis<br>- Attack surface mapping |
-| [📘 Module 2: Auth & Authz](modules/02_auth_and_authz.md) | Authentication & Authorization | - JWT security<br>- Session management<br>- Access control implementation |
-| [📘 Module 3: SQL Injection](modules/03_sql_injection.md) | SQL Injection Vulnerabilities | - Understanding SQL injection<br>- Real-world exploitation<br>- Prevention techniques |
-| [📘 Module 4: Input Validation](modules/04_input_validation.md) | Input Validation & Sanitization | - Data validation strategies<br>- Type conversion security<br>- Input sanitization techniques |
-| [📘 Module 5: API Security](modules/05_api_security.md) | API Security Best Practices | - CORS configuration<br>- Rate limiting<br>- Error handling |
-| [📘 Module 6: Secure Coding](modules/06_secure_coding.md) | Secure Coding Practices | - Password security<br>- Secure logging<br>- Transaction integrity |
-| [📘 Module 7: Static Analysis](modules/07_static_analysis.md) | Automated Security Analysis | - Semgrep configuration<br>- Vulnerability detection<br>- Code pattern analysis |
+| [📘 Module 2: Software Composition Analysis](modules/02_sca.md) | Dependency Security Analysis | - Vulnerability scanning<br>- Dependency review<br>- Security findings |
+| [📘 Module 3: Auth & Authz](modules/03_auth_and_authz.md) | Authentication & Authorization | - JWT security<br>- Session management<br>- Access control implementation |
+| [📘 Module 4: SQL Injection](modules/04_sql_injection.md) | SQL Injection Vulnerabilities | - Understanding SQL injection<br>- Real-world exploitation<br>- Prevention techniques |
+| [📘 Module 5: Input Validation](modules/05_input_validation.md) | Input Validation & Sanitization | - Data validation strategies<br>- Type conversion security<br>- Input sanitization techniques |
+| [📘 Module 6: API Security](modules/06_api_security.md) | API Security Best Practices | - CORS configuration<br>- Rate limiting<br>- Error handling |
+| [📘 Module 7: Secure Coding](modules/07_secure_coding.md) | Secure Coding Practices | - Password security<br>- Secure logging<br>- Transaction integrity |
+| [📘 Module 8: Static Analysis](modules/08_static_analysis.md) | Automated Security Analysis | - Semgrep configuration<br>- Vulnerability detection<br>- Code pattern analysis |
 
 ## 📖 Module Structure
 

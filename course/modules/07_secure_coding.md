@@ -1,4 +1,4 @@
-# Module 6: Secure Coding Practices
+# Module 7: Secure Coding Practices
 
 ## Overview
 

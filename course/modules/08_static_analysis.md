@@ -1,4 +1,4 @@
-# Module 7: Automated Static Analysis with Semgrep
+# Module 8: Automated Static Analysis with Semgrep
 
 ## Overview
 

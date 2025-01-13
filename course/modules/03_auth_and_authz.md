@@ -1,4 +1,4 @@
-# Module 2: Authentication & Authorization Vulnerabilities
+# Module 3: Authentication & Authorization Vulnerabilities
 
 ## 🎓 For Beginners: Understanding Auth Vulnerabilities
 
