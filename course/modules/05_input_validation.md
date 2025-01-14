@@ -256,23 +256,24 @@ def upload_document():
 
 ## Practice Exercises
 
-1. **Amount Validation**
-   - Implement decimal precision checks
-   - Add range validation
-   - Handle currency conversion
-   - Test edge cases
+1. **Amount Validation in Transactions**
+   - Test how the system handles negative transfer amounts
+   - Attempt transfers exceeding reasonable limits to test range validation
+   - Document the validation gaps and propose fixes for proper amount validation
 
-2. **Content Sanitization**
-   - Add HTML sanitization
-   - Implement email validation
-   - Create input filters
-   - Test XSS prevention
+2. **Transaction Input Sanitization**
+   - Identify and exploit the SQL injection vulnerability in the transaction history feature
+   - Test for XSS vulnerabilities in transaction descriptions and messages
+   - Analyze how special characters are handled in transaction data
+   - Create a list of input sanitization improvements needed
 
-3. **File Upload Security**
-   - Add file type validation
-   - Implement size limits
-   - Secure file naming
-   - Test upload restrictions
+3. **User Input Validation**
+   - Test the system's handling of invalid user IDs in transfer requests
+   - Attempt self-transfers to identify missing validation checks
+   - Probe for race conditions in concurrent transfers
+   - Document all validation gaps found and their potential impact
+
+Practice these exercises in the test environment to understand input validation vulnerabilities and their mitigations. For each vulnerability found, assess its potential impact on the system and propose secure validation methods.
 
 ## Additional Resources
 
