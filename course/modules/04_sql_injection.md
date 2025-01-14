@@ -327,7 +327,7 @@ transaction = Transaction.query.get(transaction_id)
 
 1. **Authentication Bypass**
    - Try logging in with SQL injection payloads
-   - Extract user credentials using UNION attacks
+   - Extract user credentials using time-based blind attacks (e.g. CASE WHEN with randomblob)
    - Implement proper parameterization
 
 2. **Registration Exploitation**
@@ -337,7 +337,7 @@ transaction = Transaction.query.get(transaction_id)
 
 3. **Transaction Analysis**
    - Extract all transactions using injection
-   - Modify transaction records
+   - Extract all username and password hashes using UNION injection
    - Implement secure transaction queries
 
 ## Additional Resources
