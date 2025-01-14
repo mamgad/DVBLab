@@ -337,7 +337,7 @@ transaction = Transaction.query.get(transaction_id)
 
 3. **Transaction Analysis**
    - Extract all transactions using injection
-   - Extract all username and password hashes using UNION injection
+   - Extract all usernames and password hashes using UNION injection
    - Implement secure transaction queries
 
 ## Additional Resources
