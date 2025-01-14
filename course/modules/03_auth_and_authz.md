@@ -238,6 +238,8 @@ def get_transaction(transaction_id):
    - Analyze password hashing
    - Implement secure password storage
    - Add password complexity rules
+   - Exploit missing authorization in password reset endpoint to change other users' passwords
+   - Use account takeover via unauthorized password changes to gain access to victim accounts
 
 3. **Authorization Controls**
    - Add ownership validation
