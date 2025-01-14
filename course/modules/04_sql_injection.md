@@ -328,6 +328,7 @@ transaction = Transaction.query.get(transaction_id)
 1. **Authentication Bypass**
    - Try logging in with a single quote (') to trigger SQL errors and expose database details
    - Extract user credentials using time-based blind attacks (e.g. CASE WHEN with randomblob)
+   - Use sqlmap to automatically dump usernames and password hashes from the database
    - Implement proper parameterization
 
 2. **Registration Exploitation**
