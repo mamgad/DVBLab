@@ -134,7 +134,23 @@ SQL Injection vulnerabilities in DVBank Lab exist in multiple critical endpoints
 # Vulnerable: Direct string interpolation in login query
 query = f"SELECT * FROM user WHERE username = '{username}'"
 user = db.session.execute(query).fetchone()
+
+# The application returns:
+# - "Invalid credentials" if no user is found
+# - Redirects to dashboard if user is found
 ```
+
+> 🤔 **Challenge Note**: 
+> Traditional SQL injection techniques like `' OR '1'='1` or `UNION` attacks won't work directly here. Why?
+> - The application checks the password hash after the query
+> - Simple authentication bypass is prevented by additional logic
+> - Direct data extraction through UNION is not possible due to the application's response behavior
+>
+> **Your Challenge**:
+> 1. Study the application's behavior carefully
+> 2. Think about what information you can gather from login success/failure
+> 3. Consider how timing attacks might help
+> 4. Can you extract data without seeing it directly?
 
 **Attack Vectors**:
 ```sql
@@ -150,6 +166,31 @@ password: anything
 username: alice' AND '1'='1
 password: anything
 ```
+
+**Real-World Impact**:
+- Attackers can extract entire database content
+- Password hashes can be stolen
+- Account balances can be discovered
+- All without leaving obvious traces in logs
+
+> 💡 **Hints for the Challenge**:
+> 1. Think about boolean logic:
+>    - What happens when your SQL condition is TRUE vs FALSE?
+>    - How can you use this to confirm if a user exists?
+> 
+> 2. Consider timing attacks:
+>    - SQLite's `randomblob()` function can create deliberate delays
+>    - How can you use delays to extract information?
+>
+> 3. Data extraction strategy:
+>    - Break down what you want to know into yes/no questions
+>    - Use binary search to reduce the number of requests needed
+>    - Think about how to extract data one character at a time
+>
+> 4. Advanced techniques:
+>    - Can you combine boolean and timing attacks?
+>    - How might you automate this process?
+>    - What tools could help you measure response times accurately?
 
 ### 2. User Registration
 **Location**: `backend/routes/auth_routes.py`
