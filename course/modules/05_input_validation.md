@@ -1,290 +1,283 @@
-# Module 5: Input Validation Vulnerabilities
+# Module 5: Input Validation & Sanitization
 
-## 🎓 For Beginners: Understanding Input Validation
+## Understanding Input Validation
 
 ### What is Input Validation?
-Think of input validation like a bouncer at a club:
-- 🚫 Checks if people are old enough to enter
-- 🎫 Verifies if their ID is real
-- 👥 Makes sure they're on the guest list
+Input validation is the process of ensuring that application data meets specific criteria before processing. Think of it like a bouncer at a club:
+- Checks IDs (data format)
+- Enforces dress code (data content)
+- Maintains capacity limits (data size)
+- Prevents troublemakers (malicious input)
 
-In code, we need to check:
-1. Is the data the right type? (numbers should be numbers)
-2. Is the data in the right range? (age can't be negative)
-3. Is the data safe? (no harmful code or scripts)
+### Types of Input Validation
 
-### Common Input Problems in Simple Terms
+1. **Syntactic Validation**
+   - Data type checks (string, number, date)
+   - Format validation (email, phone, ZIP)
+   - Length restrictions
+   - Range checks
 
-#### 1. Missing Type Checks
-Like accepting "banana" when asking for someone's age:
+2. **Semantic Validation**
+   - Business rule compliance
+   - Data consistency
+   - Cross-field validation
+   - State validation
+
+3. **Content Validation**
+   - Character set restrictions
+   - Allowed patterns
+   - Blacklist/whitelist
+   - File type validation
+
+### Common Input Validation Vulnerabilities
+
+1. **Missing Validation**
+   - Unchecked user input
+   - Raw data processing
+   - Implicit trust in client data
+   - No boundary checks
+
+2. **Incomplete Validation**
+   - Single quote escaping only
+   - Basic length checks only
+   - Front-end validation only
+   - Partial sanitization
+
+3. **Incorrect Validation**
+   - Wrong regex patterns
+   - Improper encoding
+   - Mishandled character sets
+   - Flawed sanitization logic
+
+## DVBank Input Validation Vulnerabilities
+
+### 1. Transaction Amount Validation
+**Location**: `backend/routes/transaction_routes.py`
 ```python
-# ❌ Bad: No type checking
-@app.route('/register')
-def register():
-    age = request.args.get('age')  # Could be anything!
-    return f"Age is {age}"
-
-# ✅ Good: Type checking
-@app.route('/register')
-def register():
-    try:
-        age = int(request.args.get('age'))
-        if age < 0 or age > 150:
-            return "Invalid age"
-        return f"Age is {age}"
-    except ValueError:
-        return "Age must be a number"
-```
-
-#### 2. Missing Range Checks
-Like accepting negative money transfers:
-```python
-# ❌ Bad: No range check
-def transfer_money(amount):
-    account.balance -= amount  # Could be negative!
+@app.route('/api/transfer', methods=['POST'])
+@login_required
+def transfer():
+    amount = request.json.get('amount')
+    # No type checking
+    # No negative amount check
+    # No decimal precision check
     
-# ✅ Good: Range check
-def transfer_money(amount):
-    if amount <= 0:
-        return "Amount must be positive"
-    if amount > account.balance:
-        return "Insufficient funds"
-    account.balance -= amount
+    execute_transfer(
+        from_account=request.json.get('from_account'),
+        to_account=request.json.get('to_account'),
+        amount=amount
+    )
 ```
 
-### Real-World Banking Examples
+**Impact**:
+- Negative transfers possible
+- Integer overflow attacks
+- Precision-based attacks
+- Account balance manipulation
 
-#### 1. Money Transfer Validation
+**Exploitation**:
 ```python
-# ❌ Bad Implementation
-@app.route('/transfer', methods=['POST'])
-def transfer():
-    amount = request.form['amount']  # Could be anything!
-    make_transfer(amount)
+# Negative amount transfer
+payload = {
+    'from_account': '1234',
+    'to_account': '5678',
+    'amount': -1000  # Steal money
+}
 
-# ✅ Good Implementation
-@app.route('/transfer', methods=['POST'])
-def transfer():
+# Precision attack
+payload = {
+    'amount': 10.999999999  # Round-off error
+}
+```
+
+### 2. Profile Data Validation
+**Location**: `backend/routes/user_routes.py`
+```python
+@app.route('/api/profile/update', methods=['POST'])
+@login_required
+def update_profile():
+    # No input sanitization
+    name = request.json.get('name')
+    email = request.json.get('email')
+    bio = request.json.get('bio')
+    
+    user.update_profile(name, email, bio)
+```
+
+**Impact**:
+- XSS via profile fields
+- SQL injection possible
+- HTML injection in bio
+- Email validation bypass
+
+**Exploitation**:
+```python
+# XSS in bio
+payload = {
+    'bio': '<script>alert(document.cookie)</script>'
+}
+
+# Invalid email
+payload = {
+    'email': 'not-an-email'
+}
+```
+
+### 3. File Upload Validation
+**Location**: `backend/routes/document_routes.py`
+```python
+@app.route('/api/documents/upload', methods=['POST'])
+@login_required
+def upload_document():
+    file = request.files['document']
+    # No file type validation
+    # No size validation
+    # No content check
+    
+    filename = file.filename  # Direct use of user input
+    file.save(f'uploads/{filename}')
+```
+
+**Impact**:
+- Arbitrary file upload
+- Path traversal
+- Malware upload
+- Storage overflow
+
+**Exploitation**:
+```python
+# Path traversal
+filename = '../../../etc/passwd'
+
+# Malicious file type
+filename = 'malware.exe'
+```
+
+## Prevention Methods
+
+### 1. Proper Amount Validation
+```python
+def validate_amount(amount):
     try:
-        amount = float(request.form['amount'])
+        # Convert to decimal for precision
+        amount = Decimal(str(amount))
         
-        # Range checks
+        # Check constraints
         if amount <= 0:
-            return "Amount must be positive"
-        if amount > 10000:
-            return "Amount exceeds daily limit"
+            raise ValueError("Amount must be positive")
+        if amount.as_tuple().exponent < -2:
+            raise ValueError("Maximum 2 decimal places")
             
-        # Decimal places check
-        if len(str(amount).split('.')[-1]) > 2:
-            return "Invalid amount format"
-            
-        make_transfer(amount)
-        
-    except ValueError:
-        return "Invalid amount format"
-```
+        return amount
+    except (ValueError, DecimalException) as e:
+        raise ValidationError(str(e))
 
-#### 2. Account Number Validation
-```python
-# ❌ Bad: No format check
-def validate_account(account_num):
-    return len(account_num) == 10
-
-# ✅ Good: Proper format check
-def validate_account(account_num):
-    if not account_num.isdigit():
-        return False
-    if len(account_num) != 10:
-        return False
-    if not account_num.startswith('2024'):
-        return False
-    return True
-```
-
-### Simple Tests You Can Try
-
-#### 1. Number Fields
-Try entering:
-1. Letters in number fields
-2. Negative numbers
-3. Very large numbers
-4. Decimal numbers where integers are expected
-
-#### 2. Text Fields
-Try entering:
-1. Very long text
-2. Special characters (!@#$%^&*)
-3. HTML tags (<script>alert('hi')</script>)
-4. SQL commands (SELECT * FROM users)
-
-### Protection Checklist for Beginners
-
-#### 1. Number Validation
-- [ ] Check if input is actually a number
-- [ ] Check for negative values
-- [ ] Check for reasonable limits
-- [ ] Check decimal places
-- [ ] Check for zero where invalid
-
-#### 2. Text Validation
-- [ ] Check minimum length
-- [ ] Check maximum length
-- [ ] Remove dangerous characters
-- [ ] Check for valid format
-- [ ] Sanitize HTML/SQL content
-
-### Common Mistakes to Avoid
-1. 🚫 Trusting client-side validation only
-2. 🚫 Not checking data types
-3. 🚫 Forgetting about negative numbers
-4. 🚫 Not limiting input length
-5. 🚫 Forgetting to sanitize input
-
-### Real-World Example: Bank Transfer Form
-
-```python
-from decimal import Decimal
-import re
-
-class TransferValidator:
-    def __init__(self):
-        self.errors = []
-        
-    def validate_amount(self, amount_str):
-        try:
-            # Convert to Decimal for precise money handling
-            amount = Decimal(amount_str)
-            
-            # Basic range checks
-            if amount <= 0:
-                self.errors.append("Amount must be positive")
-            if amount > 10000:
-                self.errors.append("Amount exceeds daily limit")
-                
-            # Check decimal places
-            if len(str(amount).split('.')[-1]) > 2:
-                self.errors.append("Amount cannot have more than 2 decimal places")
-                
-            return amount if not self.errors else None
-            
-        except (ValueError, decimal.InvalidOperation):
-            self.errors.append("Invalid amount format")
-            return None
-            
-    def validate_account(self, account_num):
-        # Remove spaces and dashes
-        account_num = re.sub(r'[\s-]', '', account_num)
-        
-        if not account_num.isdigit():
-            self.errors.append("Account number must contain only digits")
-            return None
-            
-        if len(account_num) != 10:
-            self.errors.append("Account number must be 10 digits")
-            return None
-            
-        if not account_num.startswith('2024'):
-            self.errors.append("Invalid account number format")
-            return None
-            
-        return account_num
-        
-    def validate_description(self, text):
-        # Remove dangerous characters
-        text = re.sub(r'[<>\'";]', '', text)
-        
-        if len(text) > 100:
-            self.errors.append("Description too long")
-            return None
-            
-        return text.strip()
-
-# Using the validator
-@app.route('/transfer', methods=['POST'])
+@app.route('/api/transfer', methods=['POST'])
+@login_required
 def transfer():
-    validator = TransferValidator()
-    
-    # Validate amount
-    amount = validator.validate_amount(request.form.get('amount', ''))
-    
-    # Validate account
-    account = validator.validate_account(request.form.get('account', ''))
-    
-    # Validate description
-    description = validator.validate_description(request.form.get('description', ''))
-    
-    if validator.errors:
-        return jsonify({'errors': validator.errors}), 400
-        
-    # All validation passed, proceed with transfer
-    make_transfer(amount, account, description)
-    return jsonify({'message': 'Transfer successful'})
+    try:
+        amount = validate_amount(request.json.get('amount'))
+        execute_transfer(amount=amount)
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
 ```
 
-### Testing Your Validation
-
+### 2. Input Sanitization
 ```python
-def test_transfer_validation():
-    validator = TransferValidator()
+from bleach import clean
+from email_validator import validate_email, EmailNotValidError
+
+def sanitize_profile_input(data):
+    # Sanitize HTML content
+    if 'bio' in data:
+        data['bio'] = clean(
+            data['bio'],
+            tags=['p', 'br', 'strong', 'em'],
+            attributes={},
+            strip=True
+        )
     
-    # Test amount validation
-    assert validator.validate_amount('100.50') == Decimal('100.50')
-    assert validator.validate_amount('-100') is None
-    assert validator.validate_amount('abc') is None
-    assert validator.validate_amount('100.999') is None
-    
-    # Test account validation
-    assert validator.validate_account('2024123456') == '2024123456'
-    assert validator.validate_account('2024-123-456') == '2024123456'
-    assert validator.validate_account('1234567890') is None
-    assert validator.validate_account('abc') is None
-    
-    # Test description validation
-    assert validator.validate_description('Test transfer') == 'Test transfer'
-    assert validator.validate_description('<script>alert("hi")</script>') == 'scriptalert("hi")/script'
-    assert validator.validate_description('a' * 200) is None
+    # Validate email
+    if 'email' in data:
+        try:
+            valid = validate_email(data['email'])
+            data['email'] = valid.email
+        except EmailNotValidError as e:
+            raise ValidationError(str(e))
+            
+    return data
+
+@app.route('/api/profile/update', methods=['POST'])
+@login_required
+def update_profile():
+    try:
+        data = sanitize_profile_input(request.json)
+        user.update_profile(**data)
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
 ```
 
-## Best Practices
+### 3. Secure File Upload
+```python
+import os
+from werkzeug.utils import secure_filename
 
-1. Input Validation
-   - Validate all user inputs
-   - Use type checking
-   - Implement length limits
-   - Check value ranges
+ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
-2. Data Sanitization
-   - Sanitize before storage
-   - Use HTML sanitization
-   - Implement XSS protection
-   - Clean special characters
+def validate_file(file):
+    # Check file size
+    if not file or not file.content_length:
+        raise ValidationError("No file provided")
+    if file.content_length > MAX_FILE_SIZE:
+        raise ValidationError("File too large")
+        
+    # Check extension
+    ext = os.path.splitext(file.filename)[1][1:].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise ValidationError("File type not allowed")
+        
+    # Secure the filename
+    filename = secure_filename(file.filename)
+    return filename
 
-3. Error Handling
-   - Provide clear error messages
-   - Log validation failures
-   - Implement rate limiting
-   - Use secure defaults
+@app.route('/api/documents/upload', methods=['POST'])
+@login_required
+def upload_document():
+    try:
+        file = request.files['document']
+        filename = validate_file(file)
+        
+        # Save with secure name
+        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+```
 
-## Conclusion
+## Practice Exercises
 
-Input validation and sanitization are critical security controls in banking applications. Proper implementation helps prevent a wide range of attacks, from SQL injection to XSS, ensuring the integrity and security of financial transactions.
+1. **Amount Validation**
+   - Implement decimal precision checks
+   - Add range validation
+   - Handle currency conversion
+   - Test edge cases
 
-### Key Takeaways
-1. Always validate input on the server side
-2. Implement proper type checking for all inputs
-3. Use parameterized queries for database operations
-4. Sanitize data before storage and display
-5. Implement comprehensive error handling
+2. **Content Sanitization**
+   - Add HTML sanitization
+   - Implement email validation
+   - Create input filters
+   - Test XSS prevention
 
-### Next Steps
-- Review all input validation mechanisms
-- Implement input sanitization libraries
-- Add comprehensive error handling
-- Set up input validation monitoring
-- Regularly test with different input types
+3. **File Upload Security**
+   - Add file type validation
+   - Implement size limits
+   - Secure file naming
+   - Test upload restrictions
 
-### Additional Resources
-- [OWASP Input Validation Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)
-- [OWASP XSS Prevention Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
-- [SQL Injection Prevention Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
-- [Data Validation Documentation](https://www.w3.org/TR/html52/sec-forms.html#validating-form-data) 
+## Additional Resources
+
+1. [OWASP Input Validation Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)
+2. [File Upload Security Guide](https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload)
+3. [XSS Prevention Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

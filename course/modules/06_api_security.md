@@ -1,245 +1,249 @@
 # Module 6: API Security
 
-## Overview
+## Understanding API Security
 
-This module covers essential API security concepts and vulnerabilities commonly found in banking applications. We'll explore CORS misconfigurations, rate limiting bypasses, and improper error handling that could lead to security breaches.
+### What is API Security?
+API security is the practice of protecting APIs from attacks that could compromise their:
+- Confidentiality (data privacy)
+- Integrity (data accuracy)
+- Availability (service uptime)
+- Authentication (user identity)
+- Authorization (user permissions)
 
-## CORS Security
+### Common API Security Concerns
 
-### Common CORS Misconfigurations
+1. **Authentication Issues**
+   - Missing authentication
+   - Weak authentication
+   - Token exposure
+   - Credential leakage
 
+2. **Authorization Flaws**
+   - Missing access controls
+   - Broken object-level auth
+   - Excessive permissions
+   - Role confusion
+
+3. **Data Exposure**
+   - Sensitive data in responses
+   - Excessive data exposure
+   - Unencrypted transmission
+   - Debug information leaks
+
+4. **Resource Management**
+   - Missing rate limiting
+   - No resource quotas
+   - DoS vulnerability
+   - Excessive methods
+
+### API Attack Vectors
+
+1. **Parameter Tampering**
+   - Query manipulation
+   - Body modification
+   - Header injection
+   - Cookie tampering
+
+2. **API Abuse**
+   - Endpoint enumeration
+   - Version manipulation
+   - Method spoofing
+   - Content-type abuse
+
+3. **Infrastructure Attacks**
+   - SSRF
+   - XXE injection
+   - API gateway bypass
+   - Service discovery
+
+## DVBank API Vulnerabilities
+
+### 1. CORS Misconfiguration
+**Location**: `backend/app.py`
 ```python
-# ❌ Bad: Overly permissive CORS
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+from flask_cors import CORS
 
-# ✅ Good: Specific origin
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
+# Overly permissive CORS
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",
+        "supports_credentials": True
+    }
+})
 ```
 
-### Exploitable CORS Examples
+**Impact**:
+- Cross-origin attacks possible
+- Credential exposure
+- CSRF vulnerability
+- Data theft potential
 
-```python
-# ❌ Vulnerable: Reflecting Origin header
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    response.headers['Access-Control-Allow-Origin'] = origin
-    return response
-
-# ✅ Secure: Whitelist approach
-ALLOWED_ORIGINS = ['http://localhost:3000', 'https://yourapp.com']
-@app.after_request
-def after_request(response):
-    origin = request.headers.get('Origin')
-    if origin in ALLOWED_ORIGINS:
-        response.headers['Access-Control-Allow-Origin'] = origin
-    return response
+**Exploitation**:
+```javascript
+// Malicious site can make authenticated requests
+fetch('https://dvbank.com/api/transfer', {
+    method: 'POST',
+    credentials: 'include',
+    body: JSON.stringify({
+        to_account: 'attacker',
+        amount: 1000
+    })
+})
 ```
 
-## Rate Limiting
-
-### Implementation Examples
-
+### 2. Missing Rate Limiting
+**Location**: `backend/routes/auth_routes.py`
 ```python
-# ❌ Basic rate limiting (vulnerable to bypass)
+@app.route('/api/login', methods=['POST'])
+def login():
+    # No rate limiting
+    # No brute force protection
+    username = request.json.get('username')
+    password = request.json.get('password')
+    
+    user = authenticate(username, password)
+```
+
+**Impact**:
+- Brute force attacks
+- DoS vulnerability
+- Resource exhaustion
+- Account enumeration
+
+**Exploitation**:
+```python
+import requests
+
+# Brute force attack
+for password in passwords:
+    response = requests.post('/api/login', json={
+        'username': 'admin',
+        'password': password
+    })
+    if response.status_code == 200:
+        print(f"Found password: {password}")
+```
+
+### 3. Excessive Data Exposure
+**Location**: `backend/routes/user_routes.py`
+```python
+@app.route('/api/users/<user_id>')
+@login_required
+def get_user(user_id):
+    user = User.query.get(user_id)
+    # Returns all user data including sensitive fields
+    return jsonify(user.to_dict())
+```
+
+**Impact**:
+- PII exposure
+- Sensitive data leakage
+- Privacy violation
+- Compliance issues
+
+**Exploitation**:
+```python
+# Fetch user data to extract sensitive info
+response = requests.get('/api/users/1')
+user_data = response.json()
+
+# Access sensitive fields
+print(f"SSN: {user_data['ssn']}")
+print(f"DOB: {user_data['date_of_birth']}")
+```
+
+## Prevention Methods
+
+### 1. Secure CORS Configuration
+```python
+from flask_cors import CORS
+
+# Proper CORS setup
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["https://dvbank.com"],
+        "supports_credentials": True,
+        "methods": ["GET", "POST"],
+        "allow_headers": ["Authorization", "Content-Type"],
+        "expose_headers": ["X-Total-Count"],
+        "max_age": 3600
+    }
+})
+```
+
+### 2. API Rate Limiting
+```python
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+limiter = Limiter(
+    app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
+
+@app.route('/api/login', methods=['POST'])
 @limiter.limit("5 per minute")
-@app.route("/api/transfer")
-def transfer():
-    # ... transfer logic ...
-
-# ✅ Comprehensive rate limiting
-@limiter.limit("5 per minute", key_func=get_rate_limit_key)
-@app.route("/api/transfer")
-def transfer():
-    # ... transfer logic ...
-
-def get_rate_limit_key():
-    return f"{request.remote_addr}:{get_user_id()}"
-```
-
-### Bypass Prevention
-
-```python
-# ❌ Vulnerable to header spoofing
-client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-
-# ✅ Secure IP detection
-def get_client_ip():
-    if not request.headers.getlist("X-Forwarded-For"):
-        return request.remote_addr
-    return request.headers.getlist("X-Forwarded-For")[0]
-```
-
-## Error Handling
-
-### Secure Error Responses
-
-```python
-# ❌ Dangerous error handling
-@app.errorhandler(Exception)
-def handle_error(error):
-    return jsonify({
-        'error': str(error),
-        'traceback': traceback.format_exc()
-    }), 500
-
-# ✅ Secure error handling
-@app.errorhandler(Exception)
-def handle_error(error):
-    app.logger.error(f"Error: {str(error)}\nTraceback: {traceback.format_exc()}")
-    return jsonify({
-        'error': 'An internal error occurred'
-    }), 500
-```
-
-### Input Validation Errors
-
-```python
-# ❌ Revealing too much information
-def validate_transfer(amount):
-    if not isinstance(amount, (int, float)):
-        raise ValueError(f"Expected number, got {type(amount)}")
-    if amount <= 0:
-        raise ValueError(f"Amount {amount} must be positive")
-    if amount > get_user_balance():
-        raise ValueError(f"Insufficient funds: {get_user_balance()}")
-
-# ✅ Secure validation messages
-def validate_transfer(amount):
-    if not isinstance(amount, (int, float)):
-        raise ValueError("Invalid amount format")
-    if amount <= 0:
-        raise ValueError("Amount must be positive")
-    if amount > get_user_balance():
-        raise ValueError("Insufficient funds")
-```
-
-## Security Headers
-
-### Essential Headers Implementation
-
-```python
-# ✅ Secure headers configuration
-@app.after_request
-def add_security_headers(response):
-    response.headers['Content-Security-Policy'] = "default-src 'self'"
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
-    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    return response
-```
-
-## API Documentation Security
-
-### Secure Swagger Configuration
-
-```python
-# ❌ Insecure Swagger UI
-swagger = Swagger(app)
-
-# ✅ Production-safe Swagger
-if app.config['ENV'] == 'development':
-    swagger = Swagger(app)
-else:
-    # Disable Swagger UI in production
-    app.config['SWAGGER_UI_DOC_EXPANSION'] = None
-```
-
-## Common Vulnerabilities
-
-### 1. Broken Authentication
-- Missing or weak API keys
-- Improper session handling
-- Token exposure in URLs
-
-### 2. Excessive Data Exposure
-- Returning sensitive data in responses
-- Lack of response filtering
-- Debug information in errors
-
-### 3. Broken Object Level Authorization
-- Missing ownership checks
-- Horizontal privilege escalation
-- Vertical privilege escalation
-
-### 4. Mass Assignment
-- Unfiltered parameter binding
-- Override of protected fields
-- Automatic model mapping
-
-## Best Practices
-
-### 1. Authentication & Authorization
-- Use strong API key schemes
-- Implement proper JWT handling
-- Apply role-based access control
-
-### 2. Input Validation
-- Validate all parameters
-- Sanitize input data
-- Use strict type checking
-
-### 3. Output Control
-- Filter sensitive data
-- Implement response schemas
-- Use proper error handling
-
-### 4. Rate Limiting
-- Implement per-user limits
-- Use sliding windows
-- Apply IP-based restrictions
-
-## Security Testing
-
-### 1. Authentication Tests
-```python
-def test_api_auth():
-    # Test missing token
-    response = client.get('/api/protected')
-    assert response.status_code == 401
+def login():
+    username = request.json.get('username')
+    password = request.json.get('password')
     
-    # Test invalid token
-    response = client.get('/api/protected', headers={'Authorization': 'Bearer invalid'})
-    assert response.status_code == 401
-    
-    # Test expired token
-    expired_token = create_expired_token()
-    response = client.get('/api/protected', headers={'Authorization': f'Bearer {expired_token}'})
-    assert response.status_code == 401
+    # Track failed attempts
+    if not user:
+        track_failed_login(username, get_remote_address())
+        if get_failed_attempts(username) > 5:
+            block_ip(get_remote_address())
+        return jsonify({"error": "Invalid credentials"}), 401
 ```
 
-### 2. Rate Limit Tests
+### 3. Data Filtering
 ```python
-def test_rate_limiting():
-    # Test normal usage
-    for _ in range(5):
-        response = client.post('/api/transfer')
-        assert response.status_code == 200
-    
-    # Test limit exceeded
-    response = client.post('/api/transfer')
-    assert response.status_code == 429
+class UserDTO:
+    def __init__(self, user):
+        self.id = user.id
+        self.username = user.username
+        self.email = user.email
+        # Exclude sensitive fields
+        
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email
+        }
+
+@app.route('/api/users/<user_id>')
+@login_required
+def get_user(user_id):
+    user = User.query.get(user_id)
+    # Return filtered data
+    return jsonify(UserDTO(user).to_dict())
 ```
 
-## Conclusion
+## Practice Exercises
 
-### Key Takeaways
-1. Always implement proper CORS policies
-2. Use comprehensive rate limiting
-3. Handle errors securely
-4. Implement security headers
-5. Follow API security best practices
+1. **CORS Security**
+   - Configure proper origins
+   - Test CORS policies
+   - Implement preflight
+   - Secure credentials
 
-### Next Steps
-1. Review your API security configuration
-2. Implement missing security controls
-3. Add comprehensive testing
-4. Monitor API usage and errors
-5. Keep dependencies updated
+2. **Rate Limiting**
+   - Add request limits
+   - Implement blocking
+   - Track failed attempts
+   - Add retry headers
 
-### Additional Resources
-- [OWASP API Security Top 10](https://owasp.org/www-project-api-security/)
-- [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
-- [API Security Checklist](https://github.com/shieldfy/API-Security-Checklist)
-- [REST Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html) 
+3. **Data Protection**
+   - Create DTOs
+   - Filter responses
+   - Mask sensitive data
+   - Add field policies
+
+## Additional Resources
+
+1. [OWASP API Security Top 10](https://owasp.org/www-project-api-security/)
+2. [REST Security Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html)
+3. [API Security Best Practices](https://www.pingidentity.com/en/company/blog/posts/2020/api-security-best-practices.html)
+
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

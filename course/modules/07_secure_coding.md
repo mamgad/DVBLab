@@ -1,332 +1,306 @@
 # Module 7: Secure Coding Practices
 
-## Overview
+## Understanding Secure Coding
 
-This module covers essential secure coding practices for banking applications, focusing on password security, secure logging practices, and maintaining transaction integrity.
+### What is Secure Coding?
+Secure coding is the practice of writing code that is resistant to attack and protects:
+- Data confidentiality
+- System integrity
+- Service availability
+- User privacy
+- Business logic
 
-## Password Security
+### Core Secure Coding Principles
 
-### Secure Password Storage
+1. **Input Validation**
+   - Never trust user input
+   - Validate at all layers
+   - Use whitelisting
+   - Type checking
 
+2. **Output Encoding**
+   - Context-specific encoding
+   - Character escaping
+   - Safe rendering
+   - Content security
+
+3. **Authentication & Authorization**
+   - Strong authentication
+   - Proper session management
+   - Least privilege
+   - Access controls
+
+4. **Data Protection**
+   - Encryption at rest
+   - Secure transmission
+   - Key management
+   - Data minimization
+
+### Common Secure Coding Mistakes
+
+1. **Security Through Obscurity**
+   - Hidden functionality
+   - Hardcoded secrets
+   - Custom encryption
+   - Undocumented features
+
+2. **Implicit Trust**
+   - Client-side validation
+   - Internal requests
+   - System files
+   - Environment variables
+
+3. **Poor Error Handling**
+   - Stack traces exposed
+   - Sensitive data in logs
+   - Inconsistent errors
+   - Debug information
+
+## DVBank Secure Coding Issues
+
+### 1. Insecure Transaction Processing
+**Location**: `backend/routes/transaction_routes.py`
 ```python
-# ❌ Insecure password storage
-def store_password(password):
-    return hashlib.md5(password.encode()).hexdigest()
-
-# ✅ Secure password storage using modern hashing
-from werkzeug.security import generate_password_hash
-
-def store_password(password):
-    return generate_password_hash(password, method='pbkdf2:sha256:260000')
-```
-
-### Password Validation
-
-```python
-# ❌ Weak password requirements
-def is_valid_password(password):
-    return len(password) >= 8
-
-# ✅ Strong password requirements
-import re
-
-def is_valid_password(password):
-    if len(password) < 12:
-        return False
-    if not re.search(r"[A-Z]", password):
-        return False
-    if not re.search(r"[a-z]", password):
-        return False
-    if not re.search(r"[0-9]", password):
-        return False
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        return False
-    return True
-```
-
-## Secure Logging
-
-### Sensitive Data Handling
-
-```python
-# ❌ Insecure logging
-def log_transaction(user, amount, account):
-    logging.info(f"Transfer: {user.username}, Amount: {amount}, Account: {account}")
-
-# ✅ Secure logging
-def log_transaction(user, amount, account):
-    logging.info(f"Transfer by user ID: {user.id}")
-    logging.debug(f"Details: Amount: {mask_amount(amount)}, Account: {mask_account(account)}")
-
-def mask_account(account):
-    return f"****{account[-4:]}"
-
-def mask_amount(amount):
-    return f"Amount: {len(str(amount)) * '*'}"
-```
-
-### Audit Logging
-
-```python
-# ✅ Comprehensive audit logging
-class AuditLogger:
-    def __init__(self):
-        self.logger = logging.getLogger('audit')
-        
-    def log_action(self, user_id, action, status, details=None):
-        log_entry = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'user_id': user_id,
-            'action': action,
-            'status': status,
-            'ip_address': request.remote_addr,
-            'user_agent': request.user_agent.string
-        }
-        if details:
-            log_entry['details'] = self.sanitize_details(details)
-        
-        self.logger.info(json.dumps(log_entry))
+@app.route('/api/transfer', methods=['POST'])
+@login_required
+def transfer():
+    # No transaction atomicity
+    # No balance validation
+    # No rollback handling
     
-    def sanitize_details(self, details):
-        sensitive_fields = ['password', 'token', 'account_number']
-        return {k: '****' if k in sensitive_fields else v 
-                for k, v in details.items()}
-```
-
-## Transaction Integrity
-
-### Atomic Transactions
-
-```python
-# ❌ Non-atomic transaction
-def transfer_money(from_account, to_account, amount):
     from_account.balance -= amount
+    db.session.commit()
+    
     to_account.balance += amount
     db.session.commit()
+```
 
-# ✅ Atomic transaction with rollback
-from sqlalchemy import transaction
+**Impact**:
+- Race conditions
+- Inconsistent state
+- Balance manipulation
+- Lost transactions
 
-def transfer_money(from_account, to_account, amount):
+**Exploitation**:
+```python
+# Race condition attack
+def race_attack():
+    balance = 100
+    for _ in range(10):
+        Thread(target=lambda: transfer(
+            from_account='victim',
+            to_account='attacker',
+            amount=balance
+        )).start()
+```
+
+### 2. Unsafe Password Reset
+**Location**: `backend/routes/auth_routes.py`
+```python
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    email = request.json.get('email')
+    # No rate limiting
+    # No token expiration
+    # No secure token
+    
+    token = generate_reset_token()  # Predictable
+    send_reset_email(email, token)
+```
+
+**Impact**:
+- Token prediction
+- Email enumeration
+- Rate limit bypass
+- Account takeover
+
+**Exploitation**:
+```python
+# Token prediction attack
+import time
+
+def predict_token():
+    email = 'victim@example.com'
+    timestamp = int(time.time())
+    predicted = f"{email}:{timestamp}"
+    return md5(predicted.encode()).hexdigest()
+```
+
+### 3. Unsafe File Operations
+**Location**: `backend/routes/document_routes.py`
+```python
+@app.route('/api/export', methods=['POST'])
+@login_required
+def export_data():
+    filename = request.json.get('filename')
+    data = get_user_data()
+    
+    # Unsafe file operations
+    with open(f'exports/{filename}', 'w') as f:
+        f.write(data)
+```
+
+**Impact**:
+- Path traversal
+- File overwrite
+- Data exposure
+- System access
+
+**Exploitation**:
+```python
+# Path traversal attack
+payload = {
+    'filename': '../../../etc/passwd'
+}
+
+# File overwrite
+payload = {
+    'filename': '../config.py'
+}
+```
+
+## Prevention Methods
+
+### 1. Secure Transaction Handling
+```python
+from sqlalchemy import and_
+from contextlib import contextmanager
+
+@contextmanager
+def atomic_transaction():
     try:
-        with db.session.begin_nested():
-            from_account.balance -= amount
-            to_account.balance += amount
-            
-            if from_account.balance < 0:
-                raise ValueError("Insufficient funds")
-                
+        yield
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        raise TransactionError(f"Transfer failed: {str(e)}")
-```
+        raise TransactionError(str(e))
 
-### Race Condition Prevention
-
-```python
-# ❌ Vulnerable to race conditions
-def process_payment(account_id, amount):
-    account = Account.query.get(account_id)
-    if account.balance >= amount:
-        account.balance -= amount
-        db.session.commit()
-        return True
-    return False
-
-# ✅ Race condition safe
-from sqlalchemy import and_, update
-
-def process_payment(account_id, amount):
-    result = db.session.execute(
-        update(Account)
-        .where(and_(
-            Account.id == account_id,
-            Account.balance >= amount
-        ))
-        .values(balance=Account.balance - amount)
-        .returning(Account.id)
-    )
-    db.session.commit()
-    return result.rowcount > 0
-```
-
-## Error Handling
-
-### Secure Exception Handling
-
-```python
-# ❌ Insecure error handling
-def api_endpoint():
-    try:
-        # ... operation ...
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# ✅ Secure error handling
-class SecureAPIError(Exception):
-    def __init__(self, message, code=500):
-        self.message = message
-        self.code = code
-
-def api_endpoint():
-    try:
-        # ... operation ...
-    except ValueError as e:
-        logger.warning(f"Validation error: {str(e)}")
-        raise SecureAPIError("Invalid input", 400)
-    except Exception as e:
-        logger.error(f"Internal error: {str(e)}")
-        raise SecureAPIError("An internal error occurred")
-```
-
-## Secure Configuration
-
-### Environment Variables
-
-```python
-# ❌ Hardcoded configuration
-DATABASE_URL = "postgresql://user:password@localhost/db"
-SECRET_KEY = "your-secret-key"
-
-# ✅ Secure configuration
-from os import environ
-from dotenv import load_dotenv
-
-load_dotenv()
-
-DATABASE_URL = environ.get('DATABASE_URL')
-SECRET_KEY = environ.get('SECRET_KEY')
-
-if not all([DATABASE_URL, SECRET_KEY]):
-    raise EnvironmentError("Missing required environment variables")
-```
-
-## Input Sanitization
-
-### XSS Prevention
-
-```python
-# ❌ Vulnerable to XSS
-def save_comment(user_input):
-    return f"<div>{user_input}</div>"
-
-# ✅ XSS prevention
-import bleach
-
-def save_comment(user_input):
-    allowed_tags = ['p', 'br', 'strong', 'em']
-    allowed_attrs = {}
-    return bleach.clean(
-        user_input,
-        tags=allowed_tags,
-        attributes=allowed_attrs
-    )
-```
-
-## Security Headers
-
-### Implementation
-
-```python
-# ✅ Security headers middleware
-class SecurityHeaders:
-    def __init__(self, app):
-        self.app = app
-
-    def __call__(self, environ, start_response):
-        def security_headers(status, headers, exc_info=None):
-            headers.extend([
-                ('Content-Security-Policy', 
-                 "default-src 'self'; script-src 'self'"),
-                ('X-Content-Type-Options', 'nosniff'),
-                ('X-Frame-Options', 'DENY'),
-                ('X-XSS-Protection', '1; mode=block'),
-                ('Strict-Transport-Security',
-                 'max-age=31536000; includeSubDomains')
-            ])
-            return start_response(status, headers, exc_info)
+def transfer_money(from_account, to_account, amount):
+    with atomic_transaction():
+        # Lock accounts for update
+        from_acc = Account.query.with_for_update().get(from_account)
+        to_acc = Account.query.with_for_update().get(to_account)
         
-        return self.app(environ, security_headers)
+        # Validate balances
+        if from_acc.balance < amount:
+            raise InsufficientFunds("Insufficient balance")
+            
+        # Update balances
+        from_acc.balance -= amount
+        to_acc.balance += amount
+        
+        # Create transaction record
+        Transaction.create(
+            from_account=from_account,
+            to_account=to_account,
+            amount=amount,
+            status='completed'
+        )
 ```
 
-## Secure File Operations
-
-### Safe File Handling
-
+### 2. Secure Password Reset
 ```python
-# ❌ Unsafe file operations
-def save_user_file(filename, content):
-    with open(filename, 'wb') as f:
-        f.write(content)
+from secrets import token_urlsafe
+from datetime import datetime, timedelta
 
-# ✅ Secure file operations
+def generate_reset_token():
+    return token_urlsafe(32)
+
+def store_reset_token(user_id, token):
+    expiry = datetime.utcnow() + timedelta(hours=1)
+    ResetToken.create(
+        user_id=user_id,
+        token=token,
+        expires_at=expiry
+    )
+
+@limiter.limit("3 per hour")
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    try:
+        email = request.json.get('email')
+        user = User.query.filter_by(email=email).first()
+        
+        # Don't reveal if email exists
+        if not user:
+            return jsonify({'message': 'If email exists, reset link sent'})
+            
+        token = generate_reset_token()
+        store_reset_token(user.id, token)
+        send_reset_email(email, token)
+        
+        return jsonify({'message': 'If email exists, reset link sent'})
+    except Exception as e:
+        log_error(e)  # Log for monitoring
+        return jsonify({'message': 'If email exists, reset link sent'})
+```
+
+### 3. Safe File Operations
+```python
 import os
 from werkzeug.utils import secure_filename
 
-def save_user_file(filename, content):
-    safe_filename = secure_filename(filename)
-    allowed_extensions = {'.pdf', '.txt', '.doc', '.docx'}
+UPLOAD_FOLDER = 'secure_uploads'
+ALLOWED_EXTENSIONS = {'pdf', 'txt', 'csv'}
+
+def safe_file_operation(filename, data, operation='write'):
+    # Secure the filename
+    safe_name = secure_filename(filename)
     
-    if not os.path.splitext(safe_filename)[1].lower() in allowed_extensions:
-        raise ValueError("Invalid file type")
-        
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], safe_filename)
-    
-    # Prevent path traversal
-    if not os.path.abspath(file_path).startswith(
-        os.path.abspath(app.config['UPLOAD_FOLDER'])
+    # Ensure path is within allowed directory
+    full_path = os.path.join(UPLOAD_FOLDER, safe_name)
+    if not os.path.abspath(full_path).startswith(
+        os.path.abspath(UPLOAD_FOLDER)
     ):
-        raise ValueError("Invalid file path")
+        raise SecurityError("Invalid path")
         
-    with open(file_path, 'wb') as f:
-        f.write(content)
+    # Perform operation
+    if operation == 'write':
+        with open(full_path, 'w') as f:
+            f.write(data)
+    elif operation == 'read':
+        with open(full_path, 'r') as f:
+            return f.read()
+            
+    return safe_name
+
+@app.route('/api/export', methods=['POST'])
+@login_required
+def export_data():
+    try:
+        filename = request.json.get('filename')
+        data = get_user_data()
+        
+        safe_name = safe_file_operation(filename, data)
+        return jsonify({'filename': safe_name})
+    except SecurityError as e:
+        return jsonify({'error': str(e)}), 400
 ```
 
-## Best Practices
+## Practice Exercises
 
-### 1. Code Organization
-- Follow separation of concerns
-- Use proper error handling
-- Implement input validation
-- Apply principle of least privilege
+1. **Transaction Security**
+   - Implement atomicity
+   - Add deadlock handling
+   - Test race conditions
+   - Add audit logging
 
-### 2. Database Security
-- Use parameterized queries
-- Implement proper access controls
-- Maintain data integrity
-- Regular backups
+2. **Password Management**
+   - Secure reset flow
+   - Token generation
+   - Rate limiting
+   - Expiry handling
 
-### 3. Authentication
-- Implement MFA where possible
-- Use secure session management
-- Apply proper password policies
-- Regular security audits
+3. **File Security**
+   - Path validation
+   - Safe operations
+   - Access control
+   - Upload security
 
-### 4. Logging and Monitoring
-- Implement comprehensive logging
-- Monitor suspicious activities
-- Regular security reviews
-- Incident response planning
+## Additional Resources
 
-## Conclusion
+1. [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
+2. [Python Security Guide](https://python-security.readthedocs.io/)
+3. [Flask Security Best Practices](https://flask.palletsprojects.com/en/2.0.x/security/)
 
-### Key Takeaways
-1. Always validate and sanitize input
-2. Use secure password storage
-3. Implement proper error handling
-4. Maintain transaction integrity
-5. Follow security best practices
-
-### Next Steps
-1. Review existing codebase
-2. Implement security improvements
-3. Add security testing
-4. Monitor and log security events
-5. Keep dependencies updated
-
-### Additional Resources
-- [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
-- [Python Security Documentation](https://docs.python.org/3/library/security.html)
-- [Flask Security Best Practices](https://flask.palletsprojects.com/en/2.0.x/security/)
-- [Web Security Cheat Sheet](https://cheatsheetseries.owasp.org/) 
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
