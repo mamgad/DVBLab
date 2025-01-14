@@ -72,6 +72,7 @@ For optimal learning, we recommend following the modules in order:
 - [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
 - [React Security Best Practices](https://reactjs.org/docs/security.html)
 - [Web Security Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
+- [Known Vulnerabilities](../docs/Vulnerabilities.md) - Complete list of intentional vulnerabilities in DVBank Lab
 
 ## ⚠️ Security Notice
 

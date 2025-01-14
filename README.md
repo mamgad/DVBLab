@@ -211,6 +211,7 @@ We welcome contributions! Please:
 ### Documentation
 - [Course Modules](./course/README.md)
 - [Installation Guide](#-quick-start)
+- [Known Vulnerabilities](./docs/Vulnerabilities.md) - Detailed list of intentional security issues
 
 ### External Resources
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
