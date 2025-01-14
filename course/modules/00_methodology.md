@@ -178,43 +178,59 @@ Practical examples from our banking application:
 
 SQL Injection:
 ```python
-# Vulnerable code example from our application
-def get_transaction(transaction_id):
-    query = f"SELECT * FROM transactions WHERE id = {transaction_id}"  # Vulnerable to SQL injection
+# Vulnerable code from transaction history
+def get_transactions(user_id):
+    query = f'SELECT * FROM "Transaction" WHERE sender_id = {user_id} OR receiver_id = {user_id}'
+    result = db.session.execute(query)  # Vulnerable to SQL injection
     
 # Secure implementation
-def get_transaction(transaction_id):
-    query = "SELECT * FROM transactions WHERE id = %s"
-    cursor.execute(query, (transaction_id,))
+def get_transactions(user_id):
+    query = text('SELECT * FROM "Transaction" WHERE sender_id = :user_id OR receiver_id = :user_id')
+    result = db.session.execute(query, {'user_id': user_id})
 ```
 
 ### Authentication Bypass
 Here's an example of authentication bypass vulnerability and its fix:
 
 ```python
-# Vulnerable Implementation
-@app.route('/api/account/<account_id>')
-def get_account(account_id):
-    # Vulnerability: Lack of authentication and authorization controls
-    return jsonify(get_account_details(account_id))
+# Vulnerable Implementation from transaction routes
+@app.route('/api/transfer', methods=['POST'])
+def transfer():
+    # Missing authentication check
+    data = request.get_json()
+    amount = Decimal(str(data.get('amount', 0)))
+    to_user_id = data.get('to_user_id')
+    
+    # Direct balance manipulation without validation
+    current_user.balance -= amount
+    receiver.balance += amount
+    db.session.commit()
 
 # Secure Implementation
-@app.route('/api/account/<account_id>')
-@require_auth  # <-- Authentication: Verifies JWT token and user session
-def get_account(account_id):
+@transaction_bp.route('/api/transfer', methods=['POST'])
+@token_required  # <-- Authentication: Verifies JWT token
+def transfer(current_user):
     try:
-        # <-- Authorization: Verifies if the current user has rights to access this account
-        if not current_user.can_access_account(account_id):
-            return jsonify({'error': 'Unauthorized'}), 403
-            
-        # <-- Safe data access: Uses ORM to prevent SQL injection
-        account = Account.query.get_or_404(account_id)
-        return jsonify(account.to_dict())
+        data = request.get_json()
+        amount = validate_amount(data.get('amount'))
+        to_user_id = data.get('to_user_id')
         
-    except Exception as e:
-        # <-- Audit: Logs unauthorized access attempts
-        audit_log.error(f"Account access error: {account_id}")
-        return jsonify({'error': 'Access denied'}), 401
+        with atomic_transaction():  # <-- Transaction atomicity
+            receiver = User.query.get(to_user_id)
+            if not receiver:
+                raise ValidationError("Invalid recipient")
+                
+            if current_user.balance < amount:
+                raise InsufficientFunds("Insufficient balance")
+                
+            current_user.balance -= amount
+            receiver.balance += amount
+            
+        audit_log.info(f"Transfer: {current_user.id} -> {to_user_id}, amount: {amount}")
+        return jsonify({'message': 'Transfer successful'})
+        
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
 ```
 
 Key Security Controls:
@@ -229,42 +245,64 @@ Methodology for creating PoCs in our banking environment:
 
 1. Vulnerability Identification:
 ```python
-# Example of identifying IDOR vulnerability
-@app.route('/api/account/<account_id>')
-def get_account_details(account_id):
-    # Vulnerable: No user authorization check
-    return db.query(f"SELECT * FROM accounts WHERE id={account_id}")
+# Example of identifying transaction validation vulnerability
+@app.route('/api/transfer', methods=['POST'])
+def transfer():
+    data = request.get_json()
+    amount = data.get('amount', 0)  # No type validation
+    to_user_id = data.get('to_user_id')  # No existence check
+    
+    # Vulnerable: No proper validation or atomicity
+    current_user.balance -= amount
+    receiver.balance += amount
 ```
 
 2. Exploit Development:
 ```python
-# Example exploit script
-def test_idor_vulnerability():
-    # Login as user A
-    session = login('userA', 'passwordA')
-    # Attempt to access user B's account
-    response = session.get('/api/account/userB_account_id')
-    assert response.status_code == 200  # Vulnerability confirmed
+# Example exploit script for transaction validation
+def test_transaction_vulnerability():
+    # Login as test user
+    session = login('test_user', 'password123')
+    
+    # Attempt negative amount transfer
+    response = session.post('/api/transfer', json={
+        'to_user_id': 2,
+        'amount': -1000  # Negative amount
+    })
+    
+    # Attempt transfer with invalid precision
+    response = session.post('/api/transfer', json={
+        'to_user_id': 2,
+        'amount': 100.999999  # Invalid decimal precision
+    })
 ```
 
 3. Impact Demonstration:
 ```python
-# Example of demonstrating transaction manipulation
-def demonstrate_transaction_vulnerability():
-    # Create two test accounts
-    account1 = create_test_account(1000)  # $1000 balance
-    account2 = create_test_account(0)     # $0 balance
+# Example of demonstrating race condition in transfers
+def demonstrate_race_condition():
+    # Create test accounts
+    sender = create_test_account(1000)  # $1000 balance
+    receiver = create_test_account(0)   # $0 balance
     
-    # Exploit race condition in transfer
-    concurrent_transfers(
-        from_account=account1,
-        to_account=account2,
-        amount=1000,
-        num_concurrent=2
-    )
+    # Execute concurrent transfers
+    def concurrent_transfer():
+        transfer_amount(
+            from_account=sender.id,
+            to_account=receiver.id,
+            amount=1000
+        )
     
-    # Verify balance manipulation
-    assert get_balance(account2) > 1000  # Exploit successful
+    # Start multiple transfers simultaneously
+    threads = [Thread(target=concurrent_transfer) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+        
+    # Check final balances
+    print(f"Sender balance: {get_balance(sender.id)}")
+    print(f"Receiver balance: {get_balance(receiver.id)}")
 ```
 
 ## 10. Real-world Application
@@ -291,36 +329,43 @@ Practical examples from our codebase:
 
 1. Transaction Race Conditions:
 ```python
-# Problem: Unsynchronized balance updates
-def transfer_funds(from_account, to_account, amount):
-    if get_balance(from_account) >= amount:  # Race condition
-        update_balance(from_account, -amount)
-        update_balance(to_account, amount)
+# Problem: Unsynchronized balance updates in transfer route
+def transfer_funds(current_user, to_user_id, amount):
+    if current_user.balance >= amount:  # Race condition
+        current_user.balance -= amount
+        receiver.balance += amount
+        db.session.commit()
 
-# Solution: Implement proper locking
-@transaction.atomic
-def transfer_funds(from_account, to_account, amount):
-    with lock(from_account, to_account):
-        if get_balance(from_account) >= amount:
-            update_balance(from_account, -amount)
-            update_balance(to_account, amount)
+# Solution: Implement proper transaction handling
+@atomic_transaction()
+def transfer_funds(current_user, to_user_id, amount):
+    # Lock accounts for update
+    sender = User.query.with_for_update().get(current_user.id)
+    receiver = User.query.with_for_update().get(to_user_id)
+    
+    if sender.balance >= amount:
+        sender.balance -= amount
+        receiver.balance += amount
 ```
 
 2. Insecure Direct Object References:
 ```python
-# Problem: No authorization check
-@app.route('/api/statement/<statement_id>')
-def get_statement(statement_id):
-    return Statement.query.get(statement_id)  # IDOR vulnerability
+# Problem: No authorization in transaction history
+@app.route('/api/transactions/<transaction_id>')
+def get_transaction(transaction_id):
+    # Direct object reference vulnerability
+    transaction = Transaction.query.get(transaction_id)
+    return jsonify(transaction.to_dict())
 
 # Solution: Add proper authorization
-@app.route('/api/statement/<statement_id>')
-@require_authentication
-def get_statement(statement_id):
-    statement = Statement.query.get(statement_id)
-    if not statement or statement.user_id != current_user.id:
-        raise Unauthorized()
-    return statement
+@app.route('/api/transactions/<transaction_id>')
+@token_required
+def get_transaction(current_user, transaction_id):
+    transaction = Transaction.query.get(transaction_id)
+    if not transaction or (transaction.sender_id != current_user.id and 
+                          transaction.receiver_id != current_user.id):
+        raise Unauthorized("Access denied")
+    return jsonify(transaction.to_dict())
 ```
 
 This practical approach to code review and exploitation helps developers understand not just the theory but also the practical implementation of security in our banking application context. 
