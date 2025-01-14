@@ -61,151 +61,161 @@ Secure coding is the practice of writing code that is resistant to attack and pr
 ### 1. Insecure Transaction Processing
 **Location**: `backend/routes/transaction_routes.py`
 ```python
-@app.route('/api/transfer', methods=['POST'])
-@login_required
-def transfer():
+@transaction_bp.route('/api/transfer', methods=['POST'])
+@token_required
+def transfer(current_user):
+    data = request.get_json()
+    to_user_id = data.get('to_user_id')
+    amount = Decimal(str(data.get('amount', 0)))
+    
     # No transaction atomicity
-    # No balance validation
-    # No rollback handling
+    # No proper error handling
+    # No input validation
+    # Race condition vulnerability
     
-    from_account.balance -= amount
-    db.session.commit()
+    receiver = User.query.get(to_user_id)
+    if current_user.balance < amount:
+        return jsonify({'error': 'Insufficient balance'}), 400  
     
-    to_account.balance += amount
+    current_user.balance -= amount
+    receiver.balance += amount
+    
+    db.session.add(transaction)
     db.session.commit()
 ```
 
 **Impact**:
-- Race conditions
-- Inconsistent state
-- Balance manipulation
-- Lost transactions
+- Race conditions in balance updates
+- Transaction atomicity issues
+- Potential balance manipulation
+- Missing validation checks
 
 **Exploitation**:
 ```python
 # Race condition attack
-def race_attack():
-    balance = 100
+def exploit_race_condition():
+    # Login as attacker
+    token = login('attacker', 'password123')
+    
+    # Start multiple concurrent transfers
+    def make_transfer():
+        requests.post('/api/transfer', 
+            json={
+                'to_user_id': VICTIM_ID,
+                'amount': 100
+            },
+            headers={'Authorization': f'Bearer {token}'}
+        )
+    
+    # Execute transfers concurrently
+    threads = []
     for _ in range(10):
-        Thread(target=lambda: transfer(
-            from_account='victim',
-            to_account='attacker',
-            amount=balance
-        )).start()
+        t = Thread(target=make_transfer)
+        t.start()
+        threads.append(t)
 ```
 
-### 2. Unsafe Password Reset
-**Location**: `backend/routes/auth_routes.py`
+### 2. Unsafe Transaction History Query
+**Location**: `backend/routes/transaction_routes.py`
 ```python
-@app.route('/api/reset-password', methods=['POST'])
-def reset_password():
-    email = request.json.get('email')
-    # No rate limiting
-    # No token expiration
-    # No secure token
+@transaction_bp.route('/api/transactions', methods=['GET'])
+@token_required
+def get_transactions(current_user):
+    user_id = request.args.get('user_id', current_user.id)
     
-    token = generate_reset_token()  # Predictable
-    send_reset_email(email, token)
+    # Direct string interpolation - SQL Injection
+    query = f'SELECT * FROM "Transaction" WHERE sender_id = {user_id} OR receiver_id = {user_id} ORDER BY created_at DESC'
+    result = db.session.execute(query)
+    transactions = result.fetchall()
 ```
 
 **Impact**:
-- Token prediction
-- Email enumeration
-- Rate limit bypass
-- Account takeover
+- SQL injection vulnerability
+- Unauthorized data access
+- Transaction history manipulation
+- Privacy breach
 
 **Exploitation**:
 ```python
-# Token prediction attack
-import time
+# SQL injection attack
+payload = "1 OR 1=1 --"  # View all transactions
+response = requests.get(f'/api/transactions?user_id={payload}')
 
-def predict_token():
-    email = 'victim@example.com'
-    timestamp = int(time.time())
-    predicted = f"{email}:{timestamp}"
-    return md5(predicted.encode()).hexdigest()
+# Union attack
+payload = "1 UNION SELECT id,username,password_hash,balance FROM user--"
+response = requests.get(f'/api/transactions?user_id={payload}')
 ```
 
-### 3. Unsafe File Operations
-**Location**: `backend/routes/document_routes.py`
+### 3. Hardcoded Credentials
+**Location**: `backend/app.py`
 ```python
-@app.route('/api/export', methods=['POST'])
-@login_required
-def export_data():
-    filename = request.json.get('filename')
-    data = get_user_data()
-    
-    # Unsafe file operations
-    with open(f'exports/{filename}', 'w') as f:
-        f.write(data)
-```
+# Configuration
+app.config['SECRET_KEY'] = 'supersecret'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vulnerable_bank.db'
 
-**Impact**:
-- Path traversal
-- File overwrite
-- Data exposure
-- System access
-
-**Exploitation**:
-```python
-# Path traversal attack
-payload = {
-    'filename': '../../../etc/passwd'
-}
-
-# File overwrite
-payload = {
-    'filename': '../config.py'
-}
-```
-
-### 4. Hardcoded Credentials
-**Location**: Multiple files
-```python
-# backend/config.py
-DATABASE_URL = "postgresql://dvbank:password123@localhost/dvbank"
-SECRET_KEY = "dev_secret_key_123"
-ADMIN_PASSWORD = "admin123"
-
-# backend/routes/auth_routes.py
-JWT_SECRET = "secret"  # Used for JWT signing
-
-# backend/utils/email.py
-SMTP_USER = "admin@dvbank.com"
-SMTP_PASSWORD = "smtp_password_123"
+# JWT secret in auth_routes.py
+JWT_SECRET = 'secret'
 ```
 
 **Impact**:
 - Credential exposure in source code
-- Same credentials in all deployments
-- No credential rotation
+- Same secrets across deployments
+- No secret rotation
 - Version control exposure
 
 **Exploitation**:
 ```python
-# Access database directly
-import psycopg2
-conn = psycopg2.connect("postgresql://dvbank:password123@localhost/dvbank")
-
-# Forge JWT tokens
+# Forge admin JWT token
 import jwt
-token = jwt.encode({'user_id': 1}, 'secret', algorithm='HS256')
+token = jwt.encode(
+    {'user_id': 1},  # Admin user ID
+    'secret',        # Known JWT secret
+    algorithm='HS256'
+)
 
-# Send emails through SMTP
-import smtplib
-smtp = smtplib.SMTP('smtp.dvbank.com')
-smtp.login('admin@dvbank.com', 'smtp_password_123')
+# Use forged token
+headers = {'Authorization': f'Bearer {token}'}
+response = requests.get('/api/admin', headers=headers)
+```
+
+### 4. Debug Mode in Production
+**Location**: `backend/app.py`
+```python
+# Debug mode enabled
+app.run(host='0.0.0.0', debug=True, port=5000)
+
+# Stack traces exposed
+@app.errorhandler(Exception)
+def handle_error(error):
+    return jsonify({
+        'error': str(error),
+        'traceback': traceback.format_exc()  # Exposing stack trace
+    }), 500
+```
+
+**Impact**:
+- Stack trace exposure
+- Sensitive error details
+- Debug information leak
+- Security control bypass
+
+**Exploitation**:
+```python
+# Trigger error to get stack trace
+response = requests.get('/api/transactions/invalid')
+print(response.json()['traceback'])  # View application internals
 ```
 
 ## Prevention Methods
 
-### 1. Secure Transaction Handling
+### 1. Secure Transaction Processing
 ```python
 from sqlalchemy import and_
 from contextlib import contextmanager
 
 @contextmanager
 def atomic_transaction():
+    """Ensure transaction atomicity with proper rollback"""
     try:
         yield
         db.session.commit()
@@ -213,182 +223,164 @@ def atomic_transaction():
         db.session.rollback()
         raise TransactionError(str(e))
 
-def transfer_money(from_account, to_account, amount):
-    with atomic_transaction():
-        # Lock accounts for update
-        from_acc = Account.query.with_for_update().get(from_account)
-        to_acc = Account.query.with_for_update().get(to_account)
-        
-        # Validate balances
-        if from_acc.balance < amount:
-            raise InsufficientFunds("Insufficient balance")
-            
-        # Update balances
-        from_acc.balance -= amount
-        to_acc.balance += amount
-        
-        # Create transaction record
-        Transaction.create(
-            from_account=from_account,
-            to_account=to_account,
-            amount=amount,
-            status='completed'
-        )
-```
+def validate_transfer(sender, receiver, amount):
+    """Validate transfer parameters"""
+    if not isinstance(amount, Decimal):
+        raise ValidationError("Invalid amount type")
+    if amount <= 0:
+        raise ValidationError("Amount must be positive")
+    if sender.balance < amount:
+        raise InsufficientFunds("Insufficient balance")
+    if not receiver:
+        raise ValidationError("Invalid receiver")
 
-### 2. Secure Password Reset
-```python
-from secrets import token_urlsafe
-from datetime import datetime, timedelta
-
-def generate_reset_token():
-    return token_urlsafe(32)
-
-def store_reset_token(user_id, token):
-    expiry = datetime.utcnow() + timedelta(hours=1)
-    ResetToken.create(
-        user_id=user_id,
-        token=token,
-        expires_at=expiry
-    )
-
-@limiter.limit("3 per hour")
-@app.route('/api/reset-password', methods=['POST'])
-def reset_password():
+@transaction_bp.route('/api/transfer', methods=['POST'])
+@token_required
+def transfer(current_user):
     try:
-        email = request.json.get('email')
-        user = User.query.filter_by(email=email).first()
+        data = request.get_json()
+        amount = Decimal(str(data.get('amount', 0)))
+        receiver = User.query.get(data.get('to_user_id'))
         
-        # Don't reveal if email exists
-        if not user:
-            return jsonify({'message': 'If email exists, reset link sent'})
+        # Validate transfer
+        validate_transfer(current_user, receiver, amount)
+        
+        # Execute transfer atomically
+        with atomic_transaction():
+            # Lock accounts for update
+            sender = User.query.with_for_update().get(current_user.id)
+            receiver = User.query.with_for_update().get(receiver.id)
             
-        token = generate_reset_token()
-        store_reset_token(user.id, token)
-        send_reset_email(email, token)
-        
-        return jsonify({'message': 'If email exists, reset link sent'})
-    except Exception as e:
-        log_error(e)  # Log for monitoring
-        return jsonify({'message': 'If email exists, reset link sent'})
-```
-
-### 3. Safe File Operations
-```python
-import os
-from werkzeug.utils import secure_filename
-
-UPLOAD_FOLDER = 'secure_uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'txt', 'csv'}
-
-def safe_file_operation(filename, data, operation='write'):
-    # Secure the filename
-    safe_name = secure_filename(filename)
-    
-    # Ensure path is within allowed directory
-    full_path = os.path.join(UPLOAD_FOLDER, safe_name)
-    if not os.path.abspath(full_path).startswith(
-        os.path.abspath(UPLOAD_FOLDER)
-    ):
-        raise SecurityError("Invalid path")
-        
-    # Perform operation
-    if operation == 'write':
-        with open(full_path, 'w') as f:
-            f.write(data)
-    elif operation == 'read':
-        with open(full_path, 'r') as f:
-            return f.read()
+            # Perform transfer
+            sender.balance -= amount
+            receiver.balance += amount
             
-    return safe_name
-
-@app.route('/api/export', methods=['POST'])
-@login_required
-def export_data():
-    try:
-        filename = request.json.get('filename')
-        data = get_user_data()
-        
-        safe_name = safe_file_operation(filename, data)
-        return jsonify({'filename': safe_name})
-    except SecurityError as e:
+            # Create transaction record
+            transaction = Transaction(
+                sender_id=sender.id,
+                receiver_id=receiver.id,
+                amount=amount,
+                status='completed',
+                completed_at=datetime.utcnow()
+            )
+            db.session.add(transaction)
+            
+        return jsonify({
+            'message': 'Transfer successful',
+            'transaction': transaction.to_dict()
+        })
+    except ValidationError as e:
         return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        log_error(e)  # Secure error logging
+        return jsonify({'error': 'Transfer failed'}), 500
 ```
 
-### 4. Secure Credential Management
+### 2. Secure Transaction Query
 ```python
-# Use environment variables
-import os
-from dotenv import load_dotenv
+from sqlalchemy import or_
 
-load_dotenv()
+@transaction_bp.route('/api/transactions', methods=['GET'])
+@token_required
+def get_transactions(current_user):
+    # Use SQLAlchemy ORM instead of raw SQL
+    transactions = Transaction.query.filter(
+        or_(
+            Transaction.sender_id == current_user.id,
+            Transaction.receiver_id == current_user.id
+        )
+    ).order_by(Transaction.created_at.desc()).all()
+    
+    return jsonify([t.to_dict() for t in transactions])
+```
+
+### 3. Secure Configuration
+```python
+# config.py
+import os
+from datetime import timedelta
 
 class Config:
-    DATABASE_URL = os.getenv('DATABASE_URL')
+    # Load from environment variables
     SECRET_KEY = os.getenv('SECRET_KEY')
-    JWT_SECRET = os.getenv('JWT_SECRET')
+    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     
-    SMTP_CONFIG = {
-        'user': os.getenv('SMTP_USER'),
-        'password': os.getenv('SMTP_PASSWORD'),
-        'host': os.getenv('SMTP_HOST'),
-        'port': int(os.getenv('SMTP_PORT', '587'))
-    }
+    # Security settings
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    DEBUG = False
+    TESTING = False
     
     def __init__(self):
-        # Validate all required credentials are set
-        missing = []
-        for key in ['DATABASE_URL', 'SECRET_KEY', 'JWT_SECRET']:
-            if not getattr(self, key):
-                missing.append(key)
-        
-        if missing:
-            raise EnvironmentError(
-                f"Missing required environment variables: {', '.join(missing)}"
-            )
+        if not all([self.SECRET_KEY, self.JWT_SECRET_KEY, self.SQLALCHEMY_DATABASE_URI]):
+            raise EnvironmentError("Missing required environment variables")
 
-# Example .env file (not in version control)
+# Example .env file
 """
-DATABASE_URL=postgresql://user:pass@host/db
-SECRET_KEY=random_secret_key_32_chars_min
-JWT_SECRET=another_random_secret_32_chars
-SMTP_USER=email@company.com
-SMTP_PASSWORD=app_specific_password
-SMTP_HOST=smtp.company.com
-SMTP_PORT=587
+SECRET_KEY=your-secure-secret-key
+JWT_SECRET_KEY=your-secure-jwt-key
+DATABASE_URL=sqlite:///production.db
 """
+```
+
+### 4. Secure Error Handling
+```python
+import logging
+from werkzeug.exceptions import HTTPException
+
+# Configure secure logging
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+@app.errorhandler(Exception)
+def handle_error(error):
+    # Log error details securely
+    if not isinstance(error, HTTPException):
+        logging.error(f"Unhandled error: {str(error)}", exc_info=True)
+        return jsonify({
+            'error': 'An internal error occurred'
+        }), 500
+    
+    # Handle known HTTP errors
+    return jsonify({
+        'error': error.description
+    }), error.code
 ```
 
 ## Practice Exercises
 
 1. **Transaction Security**
-   - Implement atomicity
-   - Add deadlock handling
-   - Test race conditions
+   - Implement proper atomicity
+   - Add input validation
+   - Handle race conditions
    - Add audit logging
 
-2. **Password Management**
-   - Secure reset flow
-   - Token generation
-   - Rate limiting
-   - Expiry handling
+2. **Query Security**
+   - Convert raw SQL to ORM
+   - Add parameterized queries
+   - Implement access controls
+   - Add result filtering
 
-3. **File Security**
-   - Path validation
-   - Safe operations
-   - Access control
-   - Upload security
-
-4. **Credential Security**
-   - Move credentials to environment
+3. **Configuration Security**
+   - Move secrets to environment
    - Implement secret rotation
-   - Add credential validation
-   - Use secret management
+   - Add validation checks
+   - Configure secure headers
+
+4. **Error Handling**
+   - Implement secure logging
+   - Add error sanitization
+   - Create error categories
+   - Add monitoring alerts
 
 ## Additional Resources
 
 1. [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
-2. [Python Security Guide](https://python-security.readthedocs.io/)
-3. [Flask Security Best Practices](https://flask.palletsprojects.com/en/2.0.x/security/)
+2. [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
+3. [SQLAlchemy Documentation](https://docs.sqlalchemy.org/en/14/core/engines.html)
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
