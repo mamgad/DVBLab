@@ -159,6 +159,44 @@ payload = {
 }
 ```
 
+### 4. Hardcoded Credentials
+**Location**: Multiple files
+```python
+# backend/config.py
+DATABASE_URL = "postgresql://dvbank:password123@localhost/dvbank"
+SECRET_KEY = "dev_secret_key_123"
+ADMIN_PASSWORD = "admin123"
+
+# backend/routes/auth_routes.py
+JWT_SECRET = "secret"  # Used for JWT signing
+
+# backend/utils/email.py
+SMTP_USER = "admin@dvbank.com"
+SMTP_PASSWORD = "smtp_password_123"
+```
+
+**Impact**:
+- Credential exposure in source code
+- Same credentials in all deployments
+- No credential rotation
+- Version control exposure
+
+**Exploitation**:
+```python
+# Access database directly
+import psycopg2
+conn = psycopg2.connect("postgresql://dvbank:password123@localhost/dvbank")
+
+# Forge JWT tokens
+import jwt
+token = jwt.encode({'user_id': 1}, 'secret', algorithm='HS256')
+
+# Send emails through SMTP
+import smtplib
+smtp = smtplib.SMTP('smtp.dvbank.com')
+smtp.login('admin@dvbank.com', 'smtp_password_123')
+```
+
 ## Prevention Methods
 
 ### 1. Secure Transaction Handling
@@ -277,6 +315,50 @@ def export_data():
         return jsonify({'error': str(e)}), 400
 ```
 
+### 4. Secure Credential Management
+```python
+# Use environment variables
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    DATABASE_URL = os.getenv('DATABASE_URL')
+    SECRET_KEY = os.getenv('SECRET_KEY')
+    JWT_SECRET = os.getenv('JWT_SECRET')
+    
+    SMTP_CONFIG = {
+        'user': os.getenv('SMTP_USER'),
+        'password': os.getenv('SMTP_PASSWORD'),
+        'host': os.getenv('SMTP_HOST'),
+        'port': int(os.getenv('SMTP_PORT', '587'))
+    }
+    
+    def __init__(self):
+        # Validate all required credentials are set
+        missing = []
+        for key in ['DATABASE_URL', 'SECRET_KEY', 'JWT_SECRET']:
+            if not getattr(self, key):
+                missing.append(key)
+        
+        if missing:
+            raise EnvironmentError(
+                f"Missing required environment variables: {', '.join(missing)}"
+            )
+
+# Example .env file (not in version control)
+"""
+DATABASE_URL=postgresql://user:pass@host/db
+SECRET_KEY=random_secret_key_32_chars_min
+JWT_SECRET=another_random_secret_32_chars
+SMTP_USER=email@company.com
+SMTP_PASSWORD=app_specific_password
+SMTP_HOST=smtp.company.com
+SMTP_PORT=587
+"""
+```
+
 ## Practice Exercises
 
 1. **Transaction Security**
@@ -296,6 +378,12 @@ def export_data():
    - Safe operations
    - Access control
    - Upload security
+
+4. **Credential Security**
+   - Move credentials to environment
+   - Implement secret rotation
+   - Add credential validation
+   - Use secret management
 
 ## Additional Resources
 
