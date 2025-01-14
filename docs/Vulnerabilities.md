@@ -333,10 +333,10 @@ class Account(db.Model):
 ## Remediation Summary
 
 For secure implementations and fixes, refer to:
-1. [Module 3: Auth & Authz](course/modules/03_auth_and_authz.md)
-2. [Module 4: SQL Injection](course/modules/04_sql_injection.md)
-3. [Module 5: Input Validation](course/modules/05_input_validation.md)
-4. [Module 6: API Security](course/modules/06_api_security.md)
-5. [Module 7: Secure Coding](course/modules/07_secure_coding.md)
+1. [Module 3: Auth & Authz](../course/modules/03_auth_and_authz.md)
+2. [Module 4: SQL Injection](../course/modules/04_sql_injection.md)
+3. [Module 5: Input Validation](../course/modules/05_input_validation.md)
+4. [Module 6: API Security](../course/modules/06_api_security.md)
+5. [Module 7: Secure Coding](../course/modules/07_secure_coding.md)
 
 ⚠️ **Remember**: This is a deliberately vulnerable application for educational purposes. Never use these patterns in production code. 
