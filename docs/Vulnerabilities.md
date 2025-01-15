@@ -100,9 +100,6 @@ def update_profile():
 
 **Impact**:
 - Negative amount transfers possible
-- Buffer overflow potential
-- XSS through profile data
-- Invalid data storage
 
 ## 4. Information Disclosure
 
