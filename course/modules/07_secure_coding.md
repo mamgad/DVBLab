@@ -380,7 +380,41 @@ def handle_error(error):
 ## Additional Resources
 
 1. [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
-2. [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
-3. [SQLAlchemy Documentation](https://docs.sqlalchemy.org/en/14/core/engines.html)
+2. [CERT Secure Coding Standards](https://wiki.sei.cmu.edu/confluence/display/seccode/SEI+CERT+Coding+Standards)
+3. [Python Security Best Practices](https://snyk.io/blog/python-security-best-practices/)
+4. [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
+5. [SQLAlchemy Security Considerations](https://docs.sqlalchemy.org/en/14/core/security.html)
+6. [NIST Secure Software Development Framework](https://csrc.nist.gov/Projects/ssdf)
+7. [CWE Top 25 Most Dangerous Software Weaknesses](https://cwe.mitre.org/top25/archive/2021/2021_cwe_top25.html)
+8. [Python Secure Development Guide](https://python-security.readthedocs.io/)
+9. [Banking Application Security Guidelines](https://www.ffiec.gov/cybersecurity.htm)
+10. [OWASP Financial Services Guidelines](https://owasp.org/www-pdf-archive/OWASP_Financial_Services_Guide_July_2013.pdf)
+
+### Related Tools
+1. [Bandit](https://bandit.readthedocs.io/) - Python security linter
+2. [Safety](https://pyup.io/safety/) - Python dependency checker
+3. [PyT](https://github.com/python-security/pyt) - Python security static analysis
+4. [Pylint Security Plugin](https://pylint.pycqa.org/en/latest/technical_reference/extensions.html#pylint-security)
+5. [SonarQube](https://www.sonarqube.org/) - Code quality and security scanner
+
+### Academic Papers
+1. [Secure Coding Practices in Python](https://dl.acm.org/doi/10.1145/3183440.3183441)
+2. [Security Code Smells in Banking Applications](https://ieeexplore.ieee.org/document/8445916)
+3. [Automated Detection of Security Vulnerabilities](https://link.springer.com/chapter/10.1007/978-3-030-58793-1_18)
+
+### Industry Standards
+1. [PCI DSS Secure Coding Requirements](https://www.pcisecuritystandards.org/documents/PCI_Secure_Software_Standard_v1.1.pdf)
+2. [ISO/IEC 27034 Application Security](https://www.iso.org/standard/44378.html)
+3. [NIST SP 800-53 Security Controls](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf)
+
+### Practice Resources
+1. [OWASP Security Knowledge Framework](https://www.securityknowledgeframework.org/)
+2. [Secure Code Warrior](https://www.securecodewarrior.com/)
+3. [PyCQA Security Tools](https://github.com/PyCQA)
+
+### Banking-Specific Resources
+1. [FFIEC Information Security Booklet](https://ithandbook.ffiec.gov/it-booklets/information-security.aspx)
+2. [Banking Grade Security Framework](https://www.openbanking.org.uk/wp-content/uploads/Security-Profile-Version-1.1.2.pdf)
+3. [Financial API Security](https://openid.net/specs/openid-financial-api-part-2-1_0.html)
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

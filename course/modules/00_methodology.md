@@ -369,3 +369,45 @@ def get_transaction(current_user, transaction_id):
 ```
 
 This practical approach to code review and exploitation helps developers understand not just the theory but also the practical implementation of security in our banking application context. 
+
+## Additional Resources
+
+1. [OWASP Code Review Guide](https://owasp.org/www-project-code-review-guide/)
+2. [NIST Source Code Security Analysis](https://csrc.nist.gov/publications/detail/sp/800-218/final)
+3. [Microsoft Security Development Lifecycle](https://www.microsoft.com/en-us/securityengineering/sdl)
+4. [SEI Secure Code Review Guide](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=506084)
+5. [Google Code Review Developer Guide](https://google.github.io/eng-practices/review/)
+6. [CWE Secure Coding Practices](https://cwe.mitre.org/data/definitions/1150.html)
+7. [CERT Secure Coding Standards](https://wiki.sei.cmu.edu/confluence/display/seccode)
+8. [DISA Application Security Guide](https://public.cyber.mil/stigs/downloads/)
+9. [PCI Secure Software Requirements](https://www.pcisecuritystandards.org/documents/PCI-Secure-Software-Standard-v1_1.pdf)
+10. [NIST Secure Software Development Framework](https://csrc.nist.gov/Projects/ssdf)
+
+### Code Review Tools
+1. [SonarQube](https://www.sonarqube.org/) - Static code analysis
+2. [Bandit](https://bandit.readthedocs.io/) - Python security linter
+3. [Semgrep](https://semgrep.dev/) - Static analysis for many languages
+4. [CodeQL](https://codeql.github.com/) - Semantic code analysis
+5. [Checkmarx](https://www.checkmarx.com/) - Application security testing
+
+### Academic Papers
+1. [Effective Code Review Practices](https://dl.acm.org/doi/10.1145/2950290.2950294)
+2. [Security Code Review in Agile Development](https://ieeexplore.ieee.org/document/8445916)
+3. [Automated Security Review Techniques](https://link.springer.com/chapter/10.1007/978-3-030-58793-1_18)
+
+### Industry Standards
+1. [ISO/IEC 27034 Application Security](https://www.iso.org/standard/44378.html)
+2. [NIST SP 800-53 Security Controls](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf)
+3. [BSI IT-Grundschutz](https://www.bsi.bund.de/EN/Themen/Unternehmen-und-Organisationen/Standards-und-Zertifizierung/IT-Grundschutz/it-grundschutz_node.html)
+
+### Financial Industry Guidelines
+1. [FFIEC Information Security Handbook](https://ithandbook.ffiec.gov/it-booklets/information-security.aspx)
+2. [PSD2 Security Requirements](https://eba.europa.eu/regulation-and-policy/payment-services-and-electronic-money/guidelines-on-security-measures-for-operational-and-security-risks-under-psd2)
+3. [SWIFT Security Controls Framework](https://www.swift.com/myswift/customer-security-programme-csp)
+
+### Practice Resources
+1. [OWASP Code Review Project](https://owasp.org/www-project-code-review-guide/)
+2. [Secure Code Warrior](https://www.securecodewarrior.com/)
+3. [HackerOne CTF Challenges](https://www.hackerone.com/hacktivity)
+
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

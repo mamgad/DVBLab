@@ -251,5 +251,23 @@ def get_transaction(transaction_id):
 1. [JWT Security Best Practices](https://auth0.com/blog/a-look-at-the-latest-draft-for-jwt-bcp/)
 2. [OWASP Authentication Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
 3. [OWASP Authorization Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+4. [NIST Password Guidelines](https://pages.nist.gov/800-63-3/sp800-63b.html)
+5. [JWT Attack Playbook](https://github.com/ticarpi/jwt_tool/wiki)
+6. [Flask-JWT-Extended Documentation](https://flask-jwt-extended.readthedocs.io/en/stable/)
+7. [Argon2 Password Hashing](https://argon2-cffi.readthedocs.io/en/stable/)
+8. [OWASP Session Management Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+9. [OWASP Access Control Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Access_Control_Cheat_Sheet.html)
+10. [CWE-287: Improper Authentication](https://cwe.mitre.org/data/definitions/287.html)
+11. [CWE-285: Improper Authorization](https://cwe.mitre.org/data/definitions/285.html)
+
+### Related Tools
+1. [JWT.io](https://jwt.io/) - For JWT token analysis and debugging
+2. [Burp Suite JWT Editor](https://portswigger.net/bappstore/26aaa5ded2f74beea19e2ed8345a93dd) - For JWT testing
+3. [SQLMap](https://github.com/sqlmapproject/sqlmap) - For testing authentication bypass via SQL injection
+4. [Hydra](https://github.com/vanhauser-thc/thc-hydra) - For password brute force testing
+
+### Academic Papers
+1. [A Comparative Analysis of Password Hashing Schemes](https://ieeexplore.ieee.org/document/8776589)
+2. [On the Security of Modern Single Sign-On Protocols](https://arxiv.org/abs/2008.09257)
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

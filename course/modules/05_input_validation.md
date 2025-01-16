@@ -280,5 +280,26 @@ Practice these exercises in the test environment to understand input validation 
 1. [OWASP Input Validation Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html)
 2. [File Upload Security Guide](https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload)
 3. [XSS Prevention Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
+4. [Python Input Validation Libraries](https://pypi.org/project/validators/)
+5. [SQLAlchemy Query API](https://docs.sqlalchemy.org/en/14/core/tutorial.html#using-textual-sql)
+6. [Decimal Precision in Python](https://docs.python.org/3/library/decimal.html)
+7. [OWASP Data Validation](https://owasp.org/www-project-proactive-controls/v3/en/c5-validate-inputs)
+8. [CWE-20: Improper Input Validation](https://cwe.mitre.org/data/definitions/20.html)
+9. [Unicode Security Guide](https://www.unicode.org/reports/tr36/)
+10. [Regular Expression Security Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/Regular_Expression_Security_Cheat_Sheet.html)
+
+### Related Tools
+1. [Bleach](https://bleach.readthedocs.io/) - Python HTML sanitization library
+2. [Python-Validator](https://python-validator.readthedocs.io/) - Input validation framework
+3. [Cerberus](https://docs.python-cerberus.org/) - Lightweight data validation library
+4. [FastAPI's Pydantic](https://pydantic-docs.helpmanual.io/) - Data validation using Python type annotations
+
+### Academic Papers
+1. [An Analysis of Input Validation Mechanisms](https://ieeexplore.ieee.org/document/8170907)
+2. [Automated Detection of Input Validation Vulnerabilities](https://dl.acm.org/doi/10.1145/3243734.3243738)
+
+### Industry Standards
+1. [PCI DSS Input Validation Requirements](https://www.pcisecuritystandards.org/documents/PCI_DSS_v3-2-1.pdf)
+2. [NIST Input Validation Guidelines](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf)
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

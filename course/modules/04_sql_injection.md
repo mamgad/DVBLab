@@ -346,5 +346,31 @@ transaction = Transaction.query.get(transaction_id)
 1. [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
 2. [SQLite Injection Techniques](https://www.sqlite.org/security.html)
 3. [SQLAlchemy Security Considerations](https://docs.sqlalchemy.org/en/14/core/security.html)
+4. [OWASP SQL Injection Testing Guide](https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05-Testing_for_SQL_Injection)
+5. [CWE-89: SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
+6. [PortSwigger SQL Injection Guide](https://portswigger.net/web-security/sql-injection)
+7. [NIST Database Security Guide](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-123.pdf)
+8. [Python DB-API Specification](https://www.python.org/dev/peps/pep-0249/)
+9. [SQLAlchemy ORM Tutorial](https://docs.sqlalchemy.org/en/14/orm/tutorial.html)
+10. [MySQL Security Best Practices](https://dev.mysql.com/doc/refman/8.0/en/security.html)
+
+### Related Tools
+1. [SQLMap](https://github.com/sqlmapproject/sqlmap) - SQL injection testing tool
+2. [NoSQLMap](https://github.com/codingo/NoSQLMap) - NoSQL injection testing
+3. [SQLiScanner](https://github.com/0xbug/SQLiScanner) - Automatic SQL injection detection
+4. [jSQL Injection](https://github.com/ron190/jsql-injection) - Java-based SQL injection tool
+
+### Academic Papers
+1. [Advanced SQL Injection](https://dl.acm.org/doi/10.1145/1146847.1146849)
+2. [Machine Learning for SQL Injection Detection](https://ieeexplore.ieee.org/document/8862804)
+
+### Industry Standards
+1. [PCI DSS SQL Requirements](https://www.pcisecuritystandards.org/documents/PCI_DSS_v3-2-1.pdf)
+2. [HIPAA Database Security](https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html)
+
+### Practice Platforms
+1. [SQLZoo](https://sqlzoo.net/) - SQL learning and practice
+2. [PortSwigger Web Security Academy](https://portswigger.net/web-security/sql-injection)
+3. [HackTheBox SQL Injection Challenges](https://www.hackthebox.eu/)
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
