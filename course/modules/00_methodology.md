@@ -426,11 +426,6 @@ Pattern Recognition: Looking for common vulnerability patterns in our codebase:
 4. [CodeQL](https://codeql.github.com/) - Semantic code analysis
 5. [Checkmarx](https://www.checkmarx.com/) - Application security testing
 
-### Academic Papers
-1. [Effective Code Review Practices](https://dl.acm.org/doi/10.1145/2950290.2950294)
-2. [Security Code Review in Agile Development](https://ieeexplore.ieee.org/document/8445916)
-3. [Automated Security Review Techniques](https://link.springer.com/chapter/10.1007/978-3-030-58793-1_18)
-
 ### Industry Standards
 1. [ISO/IEC 27034 Application Security](https://www.iso.org/standard/44378.html)
 2. [NIST SP 800-53 Security Controls](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf)
