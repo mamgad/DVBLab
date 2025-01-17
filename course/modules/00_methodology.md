@@ -47,9 +47,193 @@ Impact Assessment: Evaluating the real-world implications of each vulnerability.
 - Manipulate transaction histories
 - Bypass transaction limits
 
-## 3. Security Control Assessment
+## 3. Source-Sink Analysis
 
-### 3.1 Authentication Review
+### 3.1 Understanding Source-Sink Methodology
+Source-sink analysis is a systematic approach to identifying potential vulnerabilities by tracking data flow from untrusted inputs (sources) to security-sensitive operations (sinks). In our banking application, this is particularly crucial as we handle sensitive financial data and operations.
+
+### 3.2 Common Sources (Untrusted Input)
+1. **User Input**
+   ```python
+   # HTTP Request Parameters
+   amount = request.args.get('amount')
+   user_id = request.json.get('user_id')
+   
+   # Form Data
+   username = request.form['username']
+   password = request.form['password']
+   
+   # Headers
+   token = request.headers.get('Authorization')
+   ```
+
+2. **External APIs**
+   ```python
+   # Third-party integrations
+   exchange_rate = requests.get(f'https://api.exchange.com/rate/{currency}').json()
+   
+   # File uploads
+   document = request.files['document']
+   ```
+
+3. **Database Data**
+   ```python
+   # User-controlled database queries
+   user_transactions = Transaction.query.filter_by(user_id=user_id).all()
+   ```
+
+### 3.3 Critical Sinks (Sensitive Operations)
+1. **Database Operations**
+   ```python
+   # SQL queries
+   query = f"SELECT * FROM user WHERE username = '{username}'"  # SQL Injection sink
+   
+   # ORM operations
+   user.balance = new_balance  # Financial data sink
+   ```
+
+2. **Financial Operations**
+   ```python
+   # Balance updates
+   account.balance -= amount  # Critical financial sink
+   
+   # Transactions
+   execute_transfer(from_account, to_account, amount)  # Transaction sink
+   ```
+
+3. **Authentication**
+   ```python
+   # Password verification
+   if check_password(user.password_hash, password):  # Auth sink
+   
+   # Token generation
+   token = generate_jwt(user_data)  # Token sink
+   ```
+
+### 3.4 Example Source-Sink Paths in DVBank
+
+1. **Transaction Flow Analysis**
+   ```python
+   # Source: User input (amount)
+   @app.route('/api/transfer', methods=['POST'])
+   def transfer():
+       amount = request.json.get('amount')  # SOURCE
+       to_user_id = request.json.get('to_user_id')  # SOURCE
+       
+       # Data flow through validation
+       validate_amount(amount)  # SANITIZER
+       
+       # Sink: Balance update
+       current_user.balance -= amount  # SINK
+       receiver.balance += amount      # SINK
+   ```
+
+2. **Authentication Flow**
+   ```python
+   # Source: Login credentials
+   @app.route('/api/login', methods=['POST'])
+   def login():
+       username = request.json.get('username')  # SOURCE
+       password = request.json.get('password')  # SOURCE
+       
+       # Data flow through query
+       query = f"SELECT * FROM user WHERE username = '{username}'"  # SINK (SQL)
+       
+       # Sink: Password verification
+       if check_password(user.password_hash, password):  # SINK (Auth)
+   ```
+
+### 3.5 Vulnerability Detection Using Source-Sink Analysis
+
+1. **Identifying Missing Sanitizers**
+   ```python
+   # Vulnerable: Direct source to sink
+   amount = request.json.get('amount')  # SOURCE
+   account.balance -= amount            # SINK
+   
+   # Secure: Sanitizer between source and sink
+   amount = request.json.get('amount')  # SOURCE
+   validated_amount = validate_amount(amount)  # SANITIZER
+   account.balance -= validated_amount  # SINK
+   ```
+
+2. **Tracing Tainted Data**
+   ```python
+   # Vulnerable: Tainted data reaches sink
+   user_id = request.args.get('user_id')  # SOURCE
+   query = f"SELECT * FROM users WHERE id = {user_id}"  # SINK
+   
+   # Secure: Data sanitization
+   user_id = request.args.get('user_id')  # SOURCE
+   if not user_id.isdigit():  # SANITIZER
+       raise ValidationError("Invalid ID")
+   query = text("SELECT * FROM users WHERE id = :id")  # SINK
+   ```
+
+### 3.6 Practice Exercise: Source-Sink Analysis
+
+1. **Map Critical Paths**
+   - Identify all user input sources
+   - List security-sensitive sinks
+   - Draw data flow diagrams
+   - Mark sanitization points
+
+2. **Analyze Transaction Flows**
+   ```python
+   # Review this flow:
+   @app.route('/api/transfer', methods=['POST'])
+   def transfer():
+       # Sources
+       amount = request.json.get('amount')
+       to_account = request.json.get('to_account')
+       
+       # Trace the flow to sinks
+       # What sanitizers are missing?
+       # Where could validation fail?
+       
+       execute_transfer(current_user, to_account, amount)
+   ```
+
+3. **Document Findings**
+   ```markdown
+   Source-Sink Path Analysis:
+   1. Source: Transfer amount (user input)
+      Sanitizers: None
+      Sink: Balance update
+      Risk: Missing amount validation
+   
+   2. Source: Account ID (user input)
+      Sanitizers: None
+      Sink: Database query
+      Risk: SQL injection possible
+   ```
+
+### 3.7 Tools for Source-Sink Analysis
+
+1. **Static Analysis**
+   ```bash
+   # Using semgrep for source-sink detection
+   semgrep --config "p/python/security/source-sink" .
+   
+   # Using bandit for Python security analysis
+   bandit -r . -ll
+   ```
+
+2. **Dynamic Analysis**
+   ```python
+   # Add tracing for source-sink analysis
+   def trace_data_flow(source, sink):
+       logging.info(f"Source: {source} -> Sink: {sink}")
+       
+   # Example usage
+   amount = request.json.get('amount')
+   trace_data_flow('user_input', 'balance_update')
+   account.balance -= amount
+   ```
+
+## 4. Security Control Assessment
+
+### 4.1 Authentication Review
 Authentication review focuses on identifying vulnerabilities in user verification systems. Key areas include:
 - Password hashing implementation in the backend
 - Session token generation and validation
@@ -57,7 +241,7 @@ Authentication review focuses on identifying vulnerabilities in user verificatio
 - Password reset functionality
 - Account recovery mechanisms
 
-### 3.2 Authorization Review
+### 4.2 Authorization Review
 Authorization review examines access control implementation, focusing on:
 - Role-based access control in banking operations
 - Transaction authorization mechanisms
@@ -65,7 +249,7 @@ Authorization review examines access control implementation, focusing on:
 - API endpoint protection
 - Administrative function security
 
-### 3.3 Data Validation Review
+### 4.3 Data Validation Review
 Data validation review ensures proper input handling throughout the application:
 - Transaction amount validation
 - Account number verification
@@ -73,9 +257,9 @@ Data validation review ensures proper input handling throughout the application:
 - API parameter validation
 - File upload security
 
-## 4. Common Banking Application Vulnerabilities
+## 5. Common Banking Application Vulnerabilities
 
-### 4.1 Transaction Security
+### 5.1 Transaction Security
 Analysis of transaction-related vulnerabilities:
 - Parameter tampering in transfer requests
 - Race conditions in balance updates
@@ -83,7 +267,7 @@ Analysis of transaction-related vulnerabilities:
 - Decimal precision errors
 - Transaction limit bypasses
 
-### 4.2 Data Security
+### 5.2 Data Security
 Review of data protection mechanisms:
 - Sensitive data exposure
 - Insecure direct object references
@@ -91,9 +275,9 @@ Review of data protection mechanisms:
 - Cross-site scripting in account views
 - Information leakage in error messages
 
-## 5. Documentation and Reporting
+## 6. Documentation and Reporting
 
-### 5.1 Vulnerability Documentation
+### 6.1 Vulnerability Documentation
 Each finding should include:
 - Clear vulnerability description
 - Affected code components
@@ -101,7 +285,7 @@ Each finding should include:
 - Impact on banking operations
 - Recommended fixes with code examples
 
-### 5.2 Risk Assessment
+### 6.2 Risk Assessment
 Risk levels should consider:
 - Financial impact
 - Customer data exposure
@@ -109,9 +293,9 @@ Risk levels should consider:
 - Reputational damage
 - Exploitation complexity
 
-## 6. Secure Development Guidelines
+## 7. Secure Development Guidelines
 
-### 6.1 Secure Coding Practices
+### 7.1 Secure Coding Practices
 Essential practices for banking applications:
 - Input validation patterns
 - Secure transaction processing
@@ -119,7 +303,7 @@ Essential practices for banking applications:
 - Proper session management
 - Secure error handling
 
-### 6.2 Security Testing
+### 7.2 Security Testing
 Continuous security validation:
 - Unit tests for security controls
 - Integration testing of security mechanisms
@@ -127,9 +311,9 @@ Continuous security validation:
 - Automated security scanning
 - Regular code reviews
 
-## 7. Remediation Strategies
+## 8. Remediation Strategies
 
-### 7.1 Vulnerability Fixes
+### 8.1 Vulnerability Fixes
 Approach to fixing identified issues:
 - Code-level security fixes
 - Security control implementation
@@ -137,7 +321,7 @@ Approach to fixing identified issues:
 - Third-party security solutions
 - Configuration hardening
 
-### 7.2 Security Improvements
+### 8.2 Security Improvements
 Long-term security enhancements:
 - Security architecture improvements
 - Framework upgrades
@@ -145,16 +329,16 @@ Long-term security enhancements:
 - Developer security training
 - Security process automation 
 
-## 8. Practical Code Review Techniques
+## 9. Practical Code Review Techniques
 
-### 8.1 Source Code Analysis Tools
+### 9.1 Source Code Analysis Tools
 In our banking application review, we utilize several key tools:
 - Static Analysis: Using tools like Bandit for Python backend code to identify security issues in authentication and transaction handling
 - Dynamic Analysis: Employing tools like OWASP ZAP to test the React frontend for XSS and CSRF vulnerabilities
 - Dependency Scanning: Checking both frontend and backend dependencies for known vulnerabilities using tools like npm audit and safety
 - Custom Scripts: Developing specific tools for testing transaction logic and API endpoints
 
-### 8.2 Manual Review Patterns
+### 9.2 Manual Review Patterns
 Effective patterns for reviewing our banking application code:
 
 Source Code Tracing: Following data flow from user input through the application. For example, tracing how transaction amounts are validated, processed, and stored, from the React frontend through the Python backend to the database.
@@ -171,9 +355,9 @@ Pattern Recognition: Looking for common vulnerability patterns in our codebase:
 - Insecure SQL queries in transaction processing
 - Weak cryptographic implementations in authentication
 
-## 9. Exploitation Techniques and Examples
+## 10. Exploitation Techniques and Examples
 
-### 9.1 Common Attack Vectors
+### 10.1 Common Attack Vectors
 Practical examples from our banking application:
 
 SQL Injection:
@@ -240,7 +424,7 @@ Key Security Controls:
 4. Audit logging
 5. Proper error handling
 
-### 9.2 Proof of Concept Development
+### 10.2 Proof of Concept Development
 Methodology for creating PoCs in our banking environment:
 
 1. Vulnerability Identification:
