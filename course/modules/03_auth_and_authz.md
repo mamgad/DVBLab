@@ -266,8 +266,4 @@ def get_transaction(transaction_id):
 3. [SQLMap](https://github.com/sqlmapproject/sqlmap) - For testing authentication bypass via SQL injection
 4. [Hydra](https://github.com/vanhauser-thc/thc-hydra) - For password brute force testing
 
-### Academic Papers
-1. [A Comparative Analysis of Password Hashing Schemes](https://ieeexplore.ieee.org/document/8776589)
-2. [On the Security of Modern Single Sign-On Protocols](https://arxiv.org/abs/2008.09257)
-
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
