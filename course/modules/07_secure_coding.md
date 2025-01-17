@@ -397,11 +397,6 @@ def handle_error(error):
 4. [Pylint Security Plugin](https://pylint.pycqa.org/en/latest/technical_reference/extensions.html#pylint-security)
 5. [SonarQube](https://www.sonarqube.org/) - Code quality and security scanner
 
-### Academic Papers
-1. [Secure Coding Practices in Python](https://dl.acm.org/doi/10.1145/3183440.3183441)
-2. [Security Code Smells in Banking Applications](https://ieeexplore.ieee.org/document/8445916)
-3. [Automated Detection of Security Vulnerabilities](https://link.springer.com/chapter/10.1007/978-3-030-58793-1_18)
-
 ### Industry Standards
 1. [PCI DSS Secure Coding Requirements](https://www.pcisecuritystandards.org/documents/PCI_Secure_Software_Standard_v1.1.pdf)
 2. [ISO/IEC 27034 Application Security](https://www.iso.org/standard/44378.html)
