@@ -294,10 +294,6 @@ Practice these exercises in the test environment to understand input validation 
 3. [Cerberus](https://docs.python-cerberus.org/) - Lightweight data validation library
 4. [FastAPI's Pydantic](https://pydantic-docs.helpmanual.io/) - Data validation using Python type annotations
 
-### Academic Papers
-1. [An Analysis of Input Validation Mechanisms](https://ieeexplore.ieee.org/document/8170907)
-2. [Automated Detection of Input Validation Vulnerabilities](https://dl.acm.org/doi/10.1145/3243734.3243738)
-
 ### Industry Standards
 1. [PCI DSS Input Validation Requirements](https://www.pcisecuritystandards.org/documents/PCI_DSS_v3-2-1.pdf)
 2. [NIST Input Validation Guidelines](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf)
