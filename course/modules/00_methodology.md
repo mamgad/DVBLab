@@ -52,184 +52,150 @@ Impact Assessment: Evaluating the real-world implications of each vulnerability.
 ### 3.1 Understanding Source-Sink Methodology
 Source-sink analysis is a systematic approach to identifying potential vulnerabilities by tracking data flow from untrusted inputs (sources) to security-sensitive operations (sinks). In our banking application, this is particularly crucial as we handle sensitive financial data and operations.
 
-### 3.2 Common Sources (Untrusted Input)
-1. **User Input**
-   ```python
-   # HTTP Request Parameters
-   amount = request.args.get('amount')
-   user_id = request.json.get('user_id')
-   
-   # Form Data
-   username = request.form['username']
-   password = request.form['password']
-   
-   # Headers
-   token = request.headers.get('Authorization')
-   ```
+Key aspects to consider:
+1. **Attack Chains**: How multiple small vulnerabilities combine into significant exploits
+2. **Data Flow**: How user input travels through different application layers
+3. **Trust Boundaries**: Where data moves between trusted and untrusted contexts
+4. **Impact Points**: Where data manipulation could affect critical operations
 
-2. **External APIs**
-   ```python
-   # Third-party integrations
-   exchange_rate = requests.get(f'https://api.exchange.com/rate/{currency}').json()
-   
-   # File uploads
-   document = request.files['document']
-   ```
+### 3.2 Identifying Sources (Entry Points)
 
-3. **Database Data**
-   ```python
-   # User-controlled database queries
-   user_transactions = Transaction.query.filter_by(user_id=user_id).all()
-   ```
+1. **Transaction Sources**
+   - Transfer amount inputs
+   - Account number fields
+   - Transaction descriptions
+   - Currency selection
+   - Payment references
 
-### 3.3 Critical Sinks (Sensitive Operations)
-1. **Database Operations**
-   ```python
-   # SQL queries
-   query = f"SELECT * FROM user WHERE username = '{username}'"  # SQL Injection sink
-   
-   # ORM operations
-   user.balance = new_balance  # Financial data sink
-   ```
+2. **Authentication Sources**
+   - Login credentials
+   - Password reset flows
+   - Security questions
+   - MFA codes
+   - Session tokens
 
-2. **Financial Operations**
-   ```python
-   # Balance updates
-   account.balance -= amount  # Critical financial sink
-   
-   # Transactions
-   execute_transfer(from_account, to_account, amount)  # Transaction sink
-   ```
+3. **Profile Sources**
+   - User details
+   - Contact information
+   - Document uploads
+   - Preferences
+   - Account settings
 
-3. **Authentication**
-   ```python
-   # Password verification
-   if check_password(user.password_hash, password):  # Auth sink
-   
-   # Token generation
-   token = generate_jwt(user_data)  # Token sink
-   ```
+4. **Hidden Sources**
+   - Stored transaction data
+   - Cached user inputs
+   - Browser storage
+   - HTTP headers
+   - URL parameters
 
-### 3.4 Example Source-Sink Paths in DVBank
+### 3.3 Critical Sinks (Impact Points)
 
-1. **Transaction Flow Analysis**
-   ```python
-   # Source: User input (amount)
-   @app.route('/api/transfer', methods=['POST'])
-   def transfer():
-       amount = request.json.get('amount')  # SOURCE
-       to_user_id = request.json.get('to_user_id')  # SOURCE
-       
-       # Data flow through validation
-       validate_amount(amount)  # SANITIZER
-       
-       # Sink: Balance update
-       current_user.balance -= amount  # SINK
-       receiver.balance += amount      # SINK
-   ```
+1. **Financial Sinks**
+   - Balance modifications
+   - Transfer executions
+   - Currency conversions
+   - Account status changes
+   - Transaction records
 
-2. **Authentication Flow**
-   ```python
-   # Source: Login credentials
-   @app.route('/api/login', methods=['POST'])
-   def login():
-       username = request.json.get('username')  # SOURCE
-       password = request.json.get('password')  # SOURCE
-       
-       # Data flow through query
-       query = f"SELECT * FROM user WHERE username = '{username}'"  # SINK (SQL)
-       
-       # Sink: Password verification
-       if check_password(user.password_hash, password):  # SINK (Auth)
-   ```
+2. **Authentication Sinks**
+   - Password verification
+   - Token validation
+   - Session management
+   - Access checks
+   - Role verification
 
-### 3.5 Vulnerability Detection Using Source-Sink Analysis
+3. **Data Operation Sinks**
+   - Database queries
+   - File operations
+   - API calls
+   - Cache operations
+   - Log entries
 
-1. **Identifying Missing Sanitizers**
-   ```python
-   # Vulnerable: Direct source to sink
-   amount = request.json.get('amount')  # SOURCE
-   account.balance -= amount            # SINK
-   
-   # Secure: Sanitizer between source and sink
-   amount = request.json.get('amount')  # SOURCE
-   validated_amount = validate_amount(amount)  # SANITIZER
-   account.balance -= validated_amount  # SINK
-   ```
+### 3.4 Common Attack Paths
 
-2. **Tracing Tainted Data**
-   ```python
-   # Vulnerable: Tainted data reaches sink
-   user_id = request.args.get('user_id')  # SOURCE
-   query = f"SELECT * FROM users WHERE id = {user_id}"  # SINK
-   
-   # Secure: Data sanitization
-   user_id = request.args.get('user_id')  # SOURCE
-   if not user_id.isdigit():  # SANITIZER
-       raise ValidationError("Invalid ID")
-   query = text("SELECT * FROM users WHERE id = :id")  # SINK
-   ```
+1. **Transaction Manipulation**
+   - Source: Transfer amount input
+   - Path: Frontend → API → Validation → Database
+   - Sink: Balance update
+   - Potential: Type confusion, precision attacks
 
-### 3.6 Practice Exercise: Source-Sink Analysis
+2. **Authentication Bypass**
+   - Source: Login credentials
+   - Path: Login form → Auth API → Verification
+   - Sink: Session creation
+   - Potential: SQL injection, timing attacks
 
-1. **Map Critical Paths**
-   - Identify all user input sources
-   - List security-sensitive sinks
-   - Draw data flow diagrams
-   - Mark sanitization points
+3. **Privilege Escalation**
+   - Source: Account ID parameter
+   - Path: Request → Authorization → Data access
+   - Sink: Account operations
+   - Potential: IDOR, logic flaws
 
-2. **Analyze Transaction Flows**
-   ```python
-   # Review this flow:
-   @app.route('/api/transfer', methods=['POST'])
-   def transfer():
-       # Sources
-       amount = request.json.get('amount')
-       to_account = request.json.get('to_account')
-       
-       # Trace the flow to sinks
-       # What sanitizers are missing?
-       # Where could validation fail?
-       
-       execute_transfer(current_user, to_account, amount)
-   ```
+### 3.5 Attack Pattern Analysis
 
-3. **Document Findings**
-   ```markdown
-   Source-Sink Path Analysis:
-   1. Source: Transfer amount (user input)
-      Sanitizers: None
-      Sink: Balance update
-      Risk: Missing amount validation
-   
-   2. Source: Account ID (user input)
-      Sanitizers: None
-      Sink: Database query
-      Risk: SQL injection possible
-   ```
+1. **Race Conditions**
+   - Target: Transfer processing
+   - Window: Balance check to update
+   - Impact: Double-spending
+   - Detection: Transaction flow analysis
 
-### 3.7 Tools for Source-Sink Analysis
+2. **Precision Attacks**
+   - Target: Amount validation
+   - Technique: Type and precision manipulation
+   - Impact: Balance manipulation
+   - Detection: Data type analysis
 
-1. **Static Analysis**
-   ```bash
-   # Using semgrep for source-sink detection
-   semgrep --config "p/python/security/source-sink" .
-   
-   # Using bandit for Python security analysis
-   bandit -r . -ll
-   ```
+3. **Logic Flaws**
+   - Target: Business rules
+   - Technique: State manipulation
+   - Impact: Rule bypass
+   - Detection: Flow analysis
 
-2. **Dynamic Analysis**
-   ```python
-   # Add tracing for source-sink analysis
-   def trace_data_flow(source, sink):
-       logging.info(f"Source: {source} -> Sink: {sink}")
-       
-   # Example usage
-   amount = request.json.get('amount')
-   trace_data_flow('user_input', 'balance_update')
-   account.balance -= amount
-   ```
+### 3.6 Research Methodology
+
+1. **Source Identification**
+   - Map all user input points
+   - Identify hidden data sources
+   - Document input types
+   - Note validation patterns
+
+2. **Sink Analysis**
+   - List critical operations
+   - Identify security boundaries
+   - Document state changes
+   - Map data persistence
+
+3. **Path Mapping**
+   - Trace data flow paths
+   - Identify missing validations
+   - Note trust transitions
+   - Document assumptions
+
+4. **Pattern Recognition**
+   - Common vulnerability patterns
+   - Security control gaps
+   - Validation inconsistencies
+   - Error handling flaws
+
+### 3.7 Impact Analysis
+
+1. **Financial Impact**
+   - Balance manipulation
+   - Unauthorized transfers
+   - Transaction tampering
+   - Currency exploitation
+
+2. **Security Impact**
+   - Account compromise
+   - Data exposure
+   - Privilege escalation
+   - Session hijacking
+
+3. **System Impact**
+   - Data integrity
+   - Service availability
+   - System stability
+   - Resource consumption
 
 ## 4. Security Control Assessment
 
