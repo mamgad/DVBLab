@@ -360,10 +360,6 @@ transaction = Transaction.query.get(transaction_id)
 3. [SQLiScanner](https://github.com/0xbug/SQLiScanner) - Automatic SQL injection detection
 4. [jSQL Injection](https://github.com/ron190/jsql-injection) - Java-based SQL injection tool
 
-### Academic Papers
-1. [Advanced SQL Injection](https://dl.acm.org/doi/10.1145/1146847.1146849)
-2. [Machine Learning for SQL Injection Detection](https://ieeexplore.ieee.org/document/8862804)
-
 ### Industry Standards
 1. [PCI DSS SQL Requirements](https://www.pcisecuritystandards.org/documents/PCI_DSS_v3-2-1.pdf)
 2. [HIPAA Database Security](https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html)
