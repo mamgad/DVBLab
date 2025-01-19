@@ -333,7 +333,9 @@ Pattern Recognition: Looking for common vulnerability patterns in our codebase:
 - Insecure SQL queries in transaction processing
 - Weak cryptographic implementations in authentication
 
-## 10. Banking Security Review Summary
+## 10. Security Review Summary
+
+A comprehensive security review requires systematic analysis of an application's attack surface, vulnerabilities, and protection mechanisms. This section summarizes key aspects of the security assessment process, from identifying entry points to evaluating security controls. Understanding these fundamental elements helps create a structured approach to discovering, analyzing, and addressing security issues across different application components.
 
 ### 10.1 Key Review Areas
 1. **Banking Entry Points**
