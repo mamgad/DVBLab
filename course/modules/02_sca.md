@@ -1,22 +1,19 @@
 # Module 2: Software Composition Analysis (SCA)
 
 ## 🎯 Learning Objectives
-- Learn how to perform dependency security analysis in source code reviews
-- Understand how to interpret and prioritize vulnerability reports
-- Practice identifying high-risk dependencies in banking applications
-- Learn to write effective security findings and remediation plans
+Software Composition Analysis (SCA) is a critical security practice that helps identify and manage vulnerabilities in third-party dependencies. In this module, you'll learn how to systematically analyze your application's dependencies for security issues, understand their impact, and develop effective remediation strategies.
 
 ## 📚 Theoretical Background
 
 ### Why SCA in Code Reviews?
-When reviewing source code for security issues, dependencies are often overlooked:
+In modern web applications, third-party dependencies make up a significant portion of the codebase. Understanding and managing these dependencies is crucial for maintaining application security. Consider these key points:
 - Vulnerabilities can exist in trusted third-party code
 - Legacy dependencies may contain known security issues
 - Dependency versions might be pinned to vulnerable versions
 - Transitive dependencies can introduce hidden risks
 
 ### Critical Areas for Banking Applications
-During code review, pay special attention to dependencies handling:
+Banking applications require special attention to dependency security due to their handling of sensitive financial data. During code review, focus on dependencies that manage:
 - Authentication and authorization (JWT, session management)
 - Data processing and serialization (YAML, JSON)
 - Network communication (CORS, HTTP)
@@ -25,7 +22,7 @@ During code review, pay special attention to dependencies handling:
 ## 🔍 Vulnerability Analysis Example
 
 ### Sample Safety Scan Output
-Below is an actual vulnerability scan of DVBank's dependencies. Let's analyze it:
+Let's examine a real vulnerability scan of DVBank's dependencies. This example demonstrates how to interpret and analyze security findings:
 
 ```bash
 $ safety scan -r requirements.txt
@@ -48,8 +45,7 @@ Found and scanned 9 packages
 ```
 
 ### Understanding the Report Structure
-
-Let's analyze key findings from the scan:
+When analyzing security scan results, it's essential to understand how to interpret the findings and prioritize remediation efforts. Let's examine key findings from the scan:
 
 1. **PyYAML Vulnerability (High Risk)**
 ```
@@ -60,7 +56,7 @@ Let's analyze key findings from the scan:
    CVE-2020-14343
 ```
 
-**Code Review Note:** During review, check for:
+**Code Review Note:** During your review, pay special attention to:
 - YAML loading operations using unsafe `yaml.load()`
 - Profile import functionality using YAML
 - Configuration file processing
@@ -74,7 +70,7 @@ Let's analyze key findings from the scan:
    CVE-2024-53861
 ```
 
-**Code Review Note:** Search for:
+**Code Review Note:** Focus your review on:
 - JWT token generation and validation
 - Algorithm specification in JWT operations
 - Issuer verification implementations
@@ -87,7 +83,7 @@ Let's analyze key findings from the scan:
    CVE-2024-6221
 ```
 
-**Code Review Note:** Examine:
+**Code Review Note:** Carefully examine:
 - CORS configuration in app initialization
 - Custom CORS headers and settings
 - Internal network access controls
@@ -95,6 +91,7 @@ Let's analyze key findings from the scan:
 ## 💡 Code Review Checklist
 
 ### 1. Dependency Declaration Review
+Understanding how dependencies are declared helps identify potential version-related vulnerabilities. Look for these patterns:
 ```python
 # Look for these patterns in requirements.txt
 flask==2.0.1        # Fixed version - check if vulnerable
@@ -103,6 +100,7 @@ pyjwt~=2.1.0        # Compatible release - check major version
 ```
 
 ### 2. Security-Critical Code Patterns
+When reviewing code that uses external dependencies, pay attention to known vulnerable patterns and their secure alternatives:
 
 #### YAML Processing
 ```python
@@ -127,6 +125,7 @@ data = jwt.decode(token, key, algorithms=['HS512'])  # Explicit algorithm
 ## 🛠️ Hands-on Exercise: Code Review
 
 ### Task 1: Analyze Dependencies
+Learn to perform comprehensive dependency analysis through practical exercises:
 1. Run safety scan on the project:
 ```bash
 safety scan -r requirements.txt --json > security-audit.json
@@ -138,7 +137,7 @@ safety scan -r requirements.txt --json > security-audit.json
    - Document security implications
 
 ### Task 2: Code Review Exercise
-Review this vulnerable code snippet:
+Practice identifying and fixing vulnerable dependency usage patterns by reviewing this code:
 ```python
 @auth_bp.route('/api/profile/import', methods=['POST'])
 @token_required
@@ -164,6 +163,7 @@ def import_profile(current_user):
 4. How would you fix it?
 
 ## 📝 Writing Security Findings
+Learning to document security findings effectively is crucial for communicating risks and remediation steps. Here's a structured approach:
 
 ### Sample Finding Report
 ```markdown
@@ -192,9 +192,12 @@ Recommendation:
 ```
 
 ## 📚 Additional Resources
+To deepen your understanding of SCA and dependency security, explore these resources:
 
-- [OWASP Dependency Check Guide](https://owasp.org/www-project-dependency-check/)
-- [Python Safety Documentation](https://pyup.io/safety/)
-- [PyYAML Security Documentation](https://pyyaml.org/wiki/PyYAMLDocumentation)
-- [JWT Security Best Practices](https://auth0.com/blog/a-look-at-the-latest-draft-for-jwt-bcp/)
-- [Source Code Review Guidelines](https://owasp.org/www-project-code-review-guide/) 
+1. [OWASP Dependency Check Guide](https://owasp.org/www-project-dependency-check/)
+2. [Python Safety Documentation](https://pyup.io/safety/)
+3. [PyYAML Security Documentation](https://pyyaml.org/wiki/PyYAMLDocumentation)
+4. [JWT Security Best Practices](https://auth0.com/blog/a-look-at-the-latest-draft-for-jwt-bcp/)
+5. [Source Code Review Guidelines](https://owasp.org/www-project-code-review-guide/)
+
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
