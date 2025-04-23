@@ -14,6 +14,12 @@ app.config['SECRET_KEY'] = 'supersecret'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vulnerable_bank.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# SECURITY VULNERABILITIES FOR EDUCATIONAL PURPOSES:
+# 1. Intentionally vulnerable CORS configuration - DO NOT USE IN PRODUCTION
+# 2. SQL Injection in transaction search - vulnerable endpoint at /api/transactions/search
+# 3. Weak password hashing (MD5) in User model
+# 4. Sensitive data exposure in user profiles
+
 # Intentionally vulnerable CORS configuration - DO NOT USE IN PRODUCTION
 @app.after_request
 def after_request(response):

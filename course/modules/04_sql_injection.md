@@ -231,6 +231,69 @@ user_id: 1 UNION SELECT * FROM transactions
 user_id: 1; UPDATE transactions SET amount = 1000000 WHERE id = 1--
 ```
 
+### 4. Transaction Search
+**Location**: `backend/routes/transaction_routes.py`
+```python
+@transaction_bp.route('/api/transactions/search', methods=['GET'])
+@token_required
+def search_transactions(current_user):
+    search_term = request.args.get('description', '')
+    
+    # VULNERABLE CODE: Direct string concatenation in SQL query
+    # This is deliberately vulnerable to SQL injection for educational purposes
+    query = f"SELECT * FROM \"transaction\" WHERE (sender_id = {current_user.id} OR receiver_id = {current_user.id}) AND description LIKE '%{search_term}%'"
+    
+    result = db.session.execute(query)
+    transactions = result.fetchall()
+    
+    transaction_list = []
+    for t in transactions:
+        transaction_list.append({
+            'id': t[0],
+            'sender_id': t[1],
+            'receiver_id': t[2], 
+            'amount': float(t[3]),
+            'description': t[4],
+            'status': t[5],
+            'created_at': t[6],
+            'completed_at': t[7]
+        })
+    
+    return jsonify(transaction_list)
+```
+
+**Attack Vectors**:
+```sql
+-- Bypass the user's transaction filter
+' OR '1'='1
+
+-- Use comment to manipulate query
+'; --
+
+-- Extract data with UNION
+' UNION SELECT id, user_id, user_id, 100.0, 'Hacked', 'completed', datetime(), datetime() FROM user WHERE '1'='1
+
+-- Advanced attack to gather database schema
+' UNION SELECT name, 1, 1, 1.0, sql, 'test', datetime(), datetime() FROM sqlite_master WHERE type='table' AND '1'='1
+```
+
+**Impact**:
+- Exposure of transactions from other users
+- Access to sensitive financial data
+- Potential extraction of the entire database schema
+- Possible manipulation of transaction history
+
+**Secure Alternative**:
+```python
+# SAFE VERSION:
+search_term = request.args.get('description', '')
+query = "SELECT * FROM transaction WHERE (sender_id = :user_id OR receiver_id = :user_id) AND description LIKE :term"
+result = db.session.execute(query, {
+    "user_id": current_user.id,
+    "term": f"%{search_term}%"
+})
+```
+
 ## Impact Analysis
 
 ### Authentication Bypass Impact
@@ -340,6 +403,13 @@ transaction = Transaction.query.get(transaction_id)
    - Extract all transactions using injection
    - Extract all usernames and password hashes using UNION injection
    - Implement secure transaction queries
+
+4. **Transaction Search Exploitation**
+   - Test the search functionality with simple SQL injection payloads
+   - Try to bypass the user filter to see other users' transactions
+   - Use UNION attacks to extract database schema information
+   - Implement a secure parameterized query version of the search functionality
+   - Compare the vulnerable and secure implementations
 
 ## Additional Resources
 
