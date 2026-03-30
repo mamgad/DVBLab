@@ -16,6 +16,6 @@ jobs:
             -e VYGL_API_URL="https://api.vygl.io" \
             -v "${{ github.workspace }}:/src" \
             vygl/vygl-cli:latest \
-            scan --fail-on high /src
+            scan --fail-on high --name "${{ github.event.repository.name }}" -b "${{ github.ref_name }}" /src
         env:
           VYGL_API_KEY: ${{ secrets.VYGL_API_KEY }}
