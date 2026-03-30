@@ -7,12 +7,15 @@ on:
 jobs:
   security-scan:
     runs-on: ubuntu-latest
-    container:
-      image: vygl/vygl-cli:latest
     steps:
       - uses: actions/checkout@v4
       - name: Run Vygl scan
-        run: vygl scan --fail-on high .
+        run: |
+          docker run --rm \
+            -e VYGL_API_KEY="${VYGL_API_KEY}" \
+            -e VYGL_API_URL="https://api.vygl.io" \
+            -v "${{ github.workspace }}:/src" \
+            vygl/vygl-cli:latest \
+            scan --fail-on high /src
         env:
           VYGL_API_KEY: ${{ secrets.VYGL_API_KEY }}
-          VYGL_API_URL: https://api.vygl.io
