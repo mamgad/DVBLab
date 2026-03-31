@@ -218,7 +218,6 @@ We welcome contributions! Please:
 - [Flask Security](https://flask.palletsprojects.com/en/stable/web-security/)
 
 
-
 ## 🙏 Acknowledgments
 - OWASP Foundation
 - [DVWA](https://github.com/digininja/DVWA) - The original inspiration for this project
