@@ -3,6 +3,7 @@ from flask_cors import CORS
 from models import db, User, Transaction
 from routes.auth_routes import auth_bp
 from routes.transaction_routes import transaction_bp
+from routes.admin_routes import admin_bp
 import os
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -61,6 +62,7 @@ db.init_app(app)
 # Register blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(transaction_bp)
+app.register_blueprint(admin_bp)
 
 # Error handlers
 @app.errorhandler(404)
