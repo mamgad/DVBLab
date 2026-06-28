@@ -1,264 +1,222 @@
 # Module 6: API Security
 
 ## Understanding API Security
-Modern web applications heavily rely on APIs (Application Programming Interfaces) to facilitate communication between different components and services. While APIs enable powerful functionality and integration capabilities, they also introduce unique security challenges that must be carefully addressed. This module explores common API vulnerabilities and teaches you how to identify, exploit, and fix them.
+DVBank exposes its functionality through a Flask JSON API. APIs concentrate authentication, authorization, and data handling in one place, so a single missing check can leak data or move money. This module walks through the real API flaws in DVBank: how to spot them, exploit them, and fix them.
 
-### What is API Security?
-API security is the practice of protecting APIs from attacks that could compromise their:
-- Confidentiality (data privacy)
-- Integrity (data accuracy)
-- Availability (service uptime)
-- Authentication (user identity)
-- Authorization (user permissions)
-
-Each of these aspects requires specific security controls and careful implementation to ensure robust API protection.
-
-### Common API Security Concerns
-Understanding the various ways APIs can be compromised is essential for building secure applications:
-
-1. **Authentication Issues**
-   - Missing or weak authentication mechanisms
-   - Token exposure through insecure transmission
-   - Credential leakage in logs or errors
-   - Improper session management
-
-2. **Authorization Flaws**
-   - Missing or insufficient access controls
-   - Broken object-level authorization (BOLA)
-   - Excessive permissions granted to clients
-   - Role confusion and privilege escalation
-
-3. **Data Exposure**
-   - Sensitive data included in responses
-   - Excessive data exposure in API responses
-   - Unencrypted data transmission
-   - Debug information in error messages
-
-4. **Resource Management**
-   - Missing or ineffective rate limiting
-   - Absence of resource quotas
-   - Denial of Service vulnerabilities
-   - Uncontrolled resource consumption
-
-### API Attack Vectors
-Attackers can exploit APIs through various methods. Understanding these attack vectors is crucial for proper defense:
-
-1. **Parameter Tampering**
-   - Manipulation of query parameters
-   - Request body modification
-   - Header injection attacks
-   - Cookie manipulation
-
-2. **API Abuse**
-   - Systematic endpoint enumeration
-   - API version manipulation
-   - HTTP method spoofing
-   - Content-type abuse
-
-3. **Infrastructure Attacks**
-   - Server-Side Request Forgery (SSRF)
-   - XML External Entity (XXE) injection
-   - API gateway bypass attempts
-   - Service discovery exploitation
+The recurring themes below are:
+- **Authorization** — endpoints authenticate a token but never check `role`, so any user reaches "admin" routes.
+- **Data exposure** — responses serialize sensitive fields (`password_hash`, SSN/DOB, API keys) that should never leave the server.
+- **Resource abuse** — no rate limiting or lockout on authentication.
+- **Cross-origin trust** — CORS headers reflect any origin with credentials enabled.
 
 ## DVBank API Vulnerabilities
-Let's examine real API security vulnerabilities present in the DVBank application. These examples demonstrate common security issues found in real-world applications.
 
 ### 1. CORS Misconfiguration
-**Location**: `backend/app.py`
+**Location**: `backend/app.py:49-58`
+
+There is no `flask_cors` instance. CORS is hand-rolled in an `after_request` hook that **reflects the request's `Origin`** back into `Access-Control-Allow-Origin` and sets `Access-Control-Allow-Credentials: true` for *any* origin:
+
 ```python
-from flask_cors import CORS
-
-# Overly permissive CORS
-CORS(app, resources={
-    r"/api/*": {
-        "origins": "*",
-        "supports_credentials": True
-    }
-})
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers.add('Access-Control-Allow-Origin', origin)   # reflects ANY origin
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 ```
 
-**Impact**:
-- Cross-origin attacks become possible
-- Credentials can be exposed to malicious sites
-- CSRF vulnerabilities may be introduced
-- Sensitive data theft potential increases
+**Why this is worse than `*`**: the CORS spec forbids the literal wildcard `*` together with credentials — browsers reject it. By *reflecting* the caller's origin instead, the server effectively grants every origin a credentialed allowance, defeating the protection the wildcard rule was meant to enforce.
 
-**Exploitation**:
+**Impact**: a malicious page can issue credentialed cross-origin requests and **read the responses**. Note the scope precisely: this enables *cross-origin reading of credentialed responses*. It does not let an attacker drive Bearer-authed endpoints (e.g. `/api/transfer`, which is `@token_required` and needs an `Authorization` header the attacker's page can't supply for the victim).
+
+**Exploitation** — pair it with a cookie-authenticated endpoint. `/api/quickpay` (`backend/routes/transaction_routes.py:122`) uses `@cookie_auth`, so the browser attaches the victim's `session_token` cookie automatically:
+
 ```javascript
-// Malicious site can make authenticated requests
-fetch('https://dvbank.com/api/transfer', {
+// On attacker.com, victim is logged into DVBank in another tab
+fetch('https://dvbank.com/api/quickpay', {
     method: 'POST',
-    credentials: 'include',
-    body: JSON.stringify({
-        to_account: 'attacker',
-        amount: 1000
-    })
+    credentials: 'include',          // sends the victim's session_token cookie
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: 'to_user_id=2&amount=1000'
 })
+.then(r => r.json())
+.then(console.log)                   // CORS reflection lets attacker READ the result
 ```
+
+The money movement here is really **CSRF / credential replay**: the cookie is sent because it lacks `SameSite`, not because of the CORS headers. The CORS reflection's added power is letting the attacker's JavaScript *read* the credentialed JSON response. See `docs/exploits/csrf_transfer.html`.
+
+> CSRF root cause is the cookie design, not these headers — covered in Prevention below.
 
 ### 2. Missing Rate Limiting
-**Location**: `backend/routes/auth_routes.py`
+**Location**: `backend/routes/auth_routes.py:30-86`
+
+The login handler does a raw SQL lookup and `check_password`, and records every attempt in the `LoginAttempt` table — but never enforces a lockout, throttle, delay, or CAPTCHA (CWE-307):
+
 ```python
-@app.route('/api/login', methods=['POST'])
+@auth_bp.route('/api/login', methods=['POST'])
 def login():
-    # No rate limiting
-    # No brute force protection
-    username = request.json.get('username')
-    password = request.json.get('password')
-    
-    user = authenticate(username, password)
+    username = data.get('username')
+    password = data.get('password')
+
+    query = f"SELECT * FROM user WHERE username = '{username}'"
+    user = db.session.execute(query).fetchone()
+
+    if user and User.query.get(user[0]).check_password(password):
+        ...
+        login_attempt = LoginAttempt(username=username, ip_address=request.remote_addr,
+                                     created_at=datetime.utcnow(), success=True)   # recorded
+        db.session.add(login_attempt); db.session.commit()
+        ...
+    login_attempt = LoginAttempt(username=username, ip_address=request.remote_addr,
+                                 created_at=datetime.utcnow(), success=False)      # recorded
+    db.session.add(login_attempt); db.session.commit()
+    return jsonify({'error': 'Invalid username or password'}), 401
 ```
 
-**Impact**:
-- Brute force attacks on authentication
-- Potential DoS through resource exhaustion
-- Account enumeration becomes possible
-- Server resources can be depleted
+**Teaching point**: the failures are *logged but never acted on*. Nothing reads `LoginAttempt` to count failures and block the account or IP, so an attacker gets unlimited guesses. Combined with fast, unsalted MD5 hashing (`models.py`), online brute force / password spraying is fully viable.
 
-**Exploitation**:
+**Impact**:
+- Brute force / credential stuffing against any account
+- DoS through unbounded authentication work
+
+**Exploitation**: see `docs/exploits/brute_force.py`.
+
 ```python
 import requests
-
-# Brute force attack
 for password in passwords:
-    response = requests.post('/api/login', json={
-        'username': 'admin',
-        'password': password
-    })
-    if response.status_code == 200:
+    r = requests.post('http://localhost:5000/api/login',
+                      json={'username': 'alice', 'password': password})
+    if r.status_code == 200:
         print(f"Found password: {password}")
+        break
 ```
+
+> Target a **seeded** user. Only `alice`, `bob`, `charlie`, `dave`, `eve`, `frank` exist (`app.py` `init_db`) — there is **no `admin` account**, so a PoC aimed at `admin` will never succeed.
+
+> The generic `401` ("Invalid username or password") is identical for unknown users and wrong passwords, so `/api/login` does **not** leak which usernames exist. For account enumeration, see `/api/register`, which returns `"Username already exists"` for taken names (`auth_routes.py:18-19`).
 
 ### 3. Excessive Data Exposure
-**Location**: `backend/routes/user_routes.py`
+**Location**: `backend/routes/admin_routes.py:280-292`
+
+The clearest sink is `GET /api/admin/users`. It is `@token_required` (any valid token) with **no role check**, and it manually serializes fields that `User.to_dict()` deliberately omits — leaking the MD5 `password_hash` and the full profile (including SSN/DOB) of every user to any authenticated caller:
+
 ```python
-@app.route('/api/users/<user_id>')
-@login_required
-def get_user(user_id):
-    user = User.query.get(user_id)
-    # Returns all user data including sensitive fields
-    return jsonify(user.to_dict())
+@admin_bp.route('/api/admin/users', methods=['GET'])
+@token_required                                 # any token works - no role gate
+def list_all_users(current_user):
+    users = User.query.all()
+    return jsonify([{
+        'id': u.id, 'username': u.username, 'email': u.email,
+        'balance': float(u.balance), 'role': u.role,
+        'password_hash': u.password_hash,        # leaks the password hash
+        'profile': u.get_profile()               # leaks full profile incl. ssn / dob
+    } for u in users])
 ```
 
-**Impact**:
-- Exposure of Personally Identifiable Information (PII)
-- Sensitive data leakage through API responses
-- Privacy violations of user data
-- Potential regulatory compliance issues
+`User.to_dict()` (`models.py:38-47`) returns only `id`, `username`, `email`, `balance`, `role`, `created_at`, `last_login` — no `password_hash`, no SSN. The vulnerability is that this endpoint **bypasses** that safe serializer and hand-builds a response with the sensitive fields.
 
-**Exploitation**:
+Two more over-exposure sinks follow the same pattern:
+- **`GET /api/admin/dashboard-data`** (`admin_routes.py:448-461`) — returns the hardcoded `ADMIN_API_KEY` and `AWS_ACCESS_KEY` in the JSON body.
+- **`GET /api/me`** (`auth_routes.py:95-103`) — returns `current_user.get_profile()`, so a user's own SSN/DOB are echoed back even though the UI never needs them.
+
+**Exploitation** — any logged-in user (e.g. `alice`) can dump everyone's secrets:
+
 ```python
-# Fetch user data to extract sensitive info
-response = requests.get('/api/users/1')
-user_data = response.json()
-
-# Access sensitive fields
-print(f"SSN: {user_data['ssn']}")
-print(f"DOB: {user_data['date_of_birth']}")
+import requests
+token = login_as('alice')   # ordinary, non-admin user
+r = requests.get('http://localhost:5000/api/admin/users',
+                 headers={'Authorization': f'Bearer {token}'})
+for u in r.json():
+    print(u['username'], u['password_hash'], u['profile'].get('ssn'))
 ```
+
+**Impact**: PII (SSN/DOB) disclosure, offline cracking of leaked MD5 hashes, and exposure of cloud/API credentials — all without admin privileges.
+
+### 4. Infrastructure: SSRF & XXE
+Two admin endpoints reach out to attacker-controlled resources. Both are `@token_required` only — again no role check.
+
+- **SSRF (CWE-918)** — `admin_routes.py:99-124`. `/api/admin/webhook-test` and `/api/admin/fetch-avatar` fetch a URL taken straight from the request body, letting an attacker pivot to internal services or cloud metadata (`http://169.254.169.254/...`). `fetch-avatar` even sets `verify=False`.
+- **XXE (CWE-611)** — `admin_routes.py:155-172`. `/api/admin/import-data` parses request XML with `etree.XMLParser(resolve_entities=True, no_network=False)`, so external entities resolve — enabling local file reads and SSRF via crafted XML.
 
 ## Prevention Methods
-Implementing proper API security controls is essential for protecting your application. Here are secure implementation examples:
 
-### 1. Secure CORS Configuration
+### 1. CORS — allowlist, never reflect
+Fix the real `after_request` hook: compare `Origin` against an explicit allowlist and only then echo it. Never reflect arbitrary origins with credentials enabled.
+
 ```python
-from flask_cors import CORS
+ALLOWED_ORIGINS = {'https://dvbank.com'}
 
-# Proper CORS setup
-CORS(app, resources={
-    r"/api/*": {
-        "origins": ["https://dvbank.com"],
-        "supports_credentials": True,
-        "methods": ["GET", "POST"],
-        "allow_headers": ["Authorization", "Content-Type"],
-        "expose_headers": ["X-Total-Count"],
-        "max_age": 3600
-    }
-})
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin in ALLOWED_ORIGINS:                 # exact match only
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Vary'] = 'Origin'       # don't let caches cross origins
+    return response
 ```
 
-### 2. API Rate Limiting
+CSRF is a *separate* fix from CORS: the cross-site money movement is possible because `cookie_auth` (`auth.py:60-88`) trusts an ambient `session_token` cookie set without `SameSite`/`HttpOnly`/`Secure` (`auth_routes.py:74`) and requires no anti-CSRF token. Harden the cookie design — set `SameSite=Strict`, `HttpOnly`, `Secure`, and require a CSRF token on state-changing requests.
+
+### 2. Rate Limiting
+Use a single, self-contained throttle. `flask_limiter` enforces the limit for you — no hand-rolled counters needed:
+
 ```python
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-limiter = Limiter(
-    app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
-)
+limiter = Limiter(get_remote_address, app=app,
+                  default_limits=["200 per day", "50 per hour"])
 
-@app.route('/api/login', methods=['POST'])
-@limiter.limit("5 per minute")
+@auth_bp.route('/api/login', methods=['POST'])
+@limiter.limit("5 per minute")        # returns 429 once exceeded
 def login():
-    username = request.json.get('username')
-    password = request.json.get('password')
-    
-    # Track failed attempts
-    if not user:
-        track_failed_login(username, get_remote_address())
-        if get_failed_attempts(username) > 5:
-            block_ip(get_remote_address())
-        return jsonify({"error": "Invalid credentials"}), 401
+    ...
 ```
+
+For account-level protection, also count failures from `LoginAttempt` and lock the account (with backoff) after a threshold.
 
 ### 3. Data Filtering
-```python
-class UserDTO:
-    def __init__(self, user):
-        self.id = user.id
-        self.username = user.username
-        self.email = user.email
-        # Exclude sensitive fields
-        
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'username': self.username,
-            'email': self.email
-        }
+Serialize through one trusted method and gate sensitive data on role. `User.to_dict()` already excludes `password_hash` and the SSN-bearing profile — use it, and never hand-build responses with extra fields:
 
-@app.route('/api/users/<user_id>')
-@login_required
-def get_user(user_id):
-    user = User.query.get(user_id)
-    # Return filtered data
-    return jsonify(UserDTO(user).to_dict())
+```python
+# models.py - the safe serializer (no password_hash, no ssn/dob):
+def to_dict(self):
+    return {
+        'id': self.id, 'username': self.username, 'email': self.email,
+        'balance': float(self.balance), 'role': self.role,
+        'created_at': self.created_at.isoformat(),
+        'last_login': self.last_login.isoformat() if self.last_login else None,
+    }
+
+@admin_bp.route('/api/admin/users', methods=['GET'])
+@token_required
+def list_all_users(current_user):
+    if current_user.role != 'admin':                 # enforce the role gate
+        return jsonify({'error': 'Forbidden'}), 403
+    return jsonify([u.to_dict() for u in User.query.all()])
 ```
 
+Apply the same role check to `/api/admin/dashboard-data`, and stop echoing secrets (`ADMIN_API_KEY`, `AWS_ACCESS_KEY`) in any response — load them from the environment and keep them server-side.
+
 ## Practice Exercises
-These exercises will help you understand and identify API security vulnerabilities:
-
-1. **CORS Security**
-   - Configure proper origin restrictions
-   - Test CORS policy effectiveness
-   - Implement preflight request handling
-   - Secure credential transmission
-
-2. **Rate Limiting**
-   - Implement request rate limits
-   - Add IP-based blocking
-   - Track and manage failed attempts
-   - Configure retry-after headers
-
-3. **Data Protection**
-   - Create Data Transfer Objects (DTOs)
-   - Implement response filtering
-   - Add sensitive data masking
-   - Define field-level security policies
+1. **CORS** — confirm the reflected `Access-Control-Allow-Origin` with a crafted `Origin` header, then replace the hook with an allowlist.
+2. **Rate Limiting** — run `docs/exploits/brute_force.py` against `alice`; then add `@limiter.limit` and verify a `429`.
+3. **Data Exposure** — call `/api/admin/users` as a non-admin and recover hashes + SSNs; add the role gate and reserialize via `to_dict()`.
+4. **SSRF/XXE** — point `/api/admin/fetch-avatar` at an internal address and craft an XXE payload for `/api/admin/import-data`.
 
 ## Additional Resources
-To deepen your understanding of API security:
-
 1. [OWASP API Security Top 10](https://owasp.org/www-project-api-security/)
 2. [REST Security Cheatsheet](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html)
-3. [API Security Best Practices](https://www.pingidentity.com/en/company/blog/posts/2020/api-security-best-practices.html)
+3. [CWE-307: Improper Restriction of Excessive Authentication Attempts](https://cwe.mitre.org/data/definitions/307.html)
+4. [CWE-918: SSRF](https://cwe.mitre.org/data/definitions/918.html) · [CWE-611: XXE](https://cwe.mitre.org/data/definitions/611.html)
 
 ### Related Tools
 1. [Postman](https://www.postman.com/) - API testing and security assessment
 2. [OWASP ZAP](https://www.zaproxy.org/) - API security testing
 3. [Burp Suite](https://portswigger.net/burp) - Web API security testing
-4. [API Security Scanner](https://apisec.ai/) - Automated API security testing
 
-⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 
+⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments.

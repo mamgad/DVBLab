@@ -1,69 +1,20 @@
 # Module 7: Secure Coding Practices
 
 ## Understanding Secure Coding
-In today's interconnected world, secure coding is not just a best practice—it's a necessity. Security vulnerabilities in code can lead to data breaches, financial losses, and compromised user privacy. This module explores essential secure coding practices and demonstrates how to implement them effectively in your applications.
+Secure coding is the practice of writing code that resists attack and protects data confidentiality, integrity, availability, and user privacy. The core principles:
 
-### What is Secure Coding?
-Secure coding is the practice of writing code that is resistant to attack and protects:
-- Data confidentiality - Ensuring sensitive information remains private
-- System integrity - Maintaining accuracy and reliability of data and systems
-- Service availability - Keeping systems operational and accessible
-- User privacy - Protecting personal information
-- Business logic - Preserving intended application behavior
+- **Input validation** - never trust user input; validate type and range at every layer.
+- **Output encoding** - escape data for the context it lands in (HTML, SQL, shell).
+- **Authentication & authorization** - strong auth, least privilege, enforced access control.
+- **Data protection** - encrypt secrets at rest and in transit; minimize what you store.
 
-### Core Secure Coding Principles
-Understanding and implementing these fundamental principles is crucial for developing secure applications:
-
-1. **Input Validation**
-   - Never trust user input without validation
-   - Validate data at all application layers
-   - Use whitelisting for allowed inputs
-   - Implement strict type checking
-
-2. **Output Encoding**
-   - Apply context-specific encoding
-   - Implement proper character escaping
-   - Ensure safe content rendering
-   - Enforce content security policies
-
-3. **Authentication & Authorization**
-   - Implement strong authentication mechanisms
-   - Maintain secure session management
-   - Apply the principle of least privilege
-   - Enforce proper access controls
-
-4. **Data Protection**
-   - Use encryption for data at rest
-   - Ensure secure data transmission
-   - Implement proper key management
-   - Practice data minimization
-
-### Common Secure Coding Mistakes
-Being aware of common security mistakes helps prevent introducing vulnerabilities:
-
-1. **Security Through Obscurity**
-   - Relying on hidden functionality for security
-   - Using hardcoded secrets in source code
-   - Implementing custom encryption schemes
-   - Maintaining undocumented security features
-
-2. **Implicit Trust**
-   - Relying solely on client-side validation
-   - Trusting internal network requests
-   - Assuming system files are secure
-   - Not validating environment variables
-
-3. **Poor Error Handling**
-   - Exposing detailed stack traces
-   - Logging sensitive data in error messages
-   - Returning inconsistent error responses
-   - Including debug information in production
+Common mistakes that introduce vulnerabilities include hardcoding secrets, trusting client-side validation, and leaking stack traces or debug output in error responses. The DVBank examples below show each of these in real code.
 
 ## DVBank Secure Coding Issues
 Let's examine real security vulnerabilities in DVBank that arise from insecure coding practices. These examples demonstrate how seemingly minor coding decisions can lead to significant security issues.
 
 ### 1. Insecure Transaction Processing
-**Location**: `backend/routes/transaction_routes.py`
+**Location**: `backend/routes/transaction_routes.py:9-37`
 ```python
 @transaction_bp.route('/api/transfer', methods=['POST'])
 @token_required
@@ -71,28 +22,28 @@ def transfer(current_user):
     data = request.get_json()
     to_user_id = data.get('to_user_id')
     amount = Decimal(str(data.get('amount', 0)))
-    
-    # No transaction atomicity
-    # No proper error handling
-    # No input validation
-    # Race condition vulnerability
-    
+
     receiver = User.query.get(to_user_id)
+    if not receiver:
+        return jsonify({'error': 'Receiver not found'}), 404
+
+    # Builds the record, then checks balance, then mutates -- minimal
+    # validation (no amount/atomicity checks), classic read-then-write race.
+    transaction = Transaction(sender_id=current_user.id, receiver_id=receiver.id,
+                              amount=amount, status='completed')
     if current_user.balance < amount:
-        return jsonify({'error': 'Insufficient balance'}), 400  
-    
+        return jsonify({'error': 'Insufficient balance'}), 400
+
     current_user.balance -= amount
     receiver.balance += amount
-    
     db.session.add(transaction)
     db.session.commit()
 ```
 
 **Impact**:
-- Race conditions can lead to balance inconsistencies
-- Transaction atomicity issues may cause data corruption
-- Missing validation enables balance manipulation
-- Lack of proper error handling exposes system details
+- The balance check and the balance update are not atomic, so concurrent transfers can each pass the check before either commits (TOCTOU race / double-spend).
+- `amount` is never validated: a negative value `-= amount` increases the sender's balance and decreases the receiver's, so a user can drain other accounts or mint money.
+- Minimal validation (no amount/atomicity checks). The receiver 404 check exists, but there is no positive-amount or numeric-bounds check.
 
 **Exploitation**:
 ```python
@@ -141,73 +92,77 @@ def get_transactions(current_user):
 
 **Exploitation**:
 ```python
-# SQL injection attack
-payload = "1 OR 1=1 --"  # View all transactions
-response = requests.get(f'/api/transactions?user_id={payload}')
+# /api/transactions is @token_required, so a valid Bearer token is needed.
+headers = {'Authorization': f'Bearer {token}'}
 
-# Union attack
-payload = "1 UNION SELECT id,username,password_hash,balance FROM user--"
-response = requests.get(f'/api/transactions?user_id={payload}')
+# Boolean injection: view all transactions, not just your own
+payload = "1 OR 1=1 -- "
+response = requests.get(f'/api/transactions?user_id={payload}', headers=headers)
+
+# UNION attack: the base query is SELECT * FROM "Transaction" (8 columns),
+# so the UNION must also select 8 columns. The table `user` is lowercase.
+# balance lands at t[3], which the handler runs through float(t[3]).
+payload = "1 UNION SELECT id,username,password_hash,balance,NULL,NULL,NULL,NULL FROM user-- "
+response = requests.get(f'/api/transactions?user_id={payload}', headers=headers)
 ```
 
-### 3. Hardcoded Credentials
-**Location**: `backend/app.py`
+### 3. Hardcoded JWT Secret + No Authorization Check
+**Location**: `backend/routes/auth_routes.py:48`, `backend/auth.py:22`
 ```python
-# Configuration
-app.config['SECRET_KEY'] = 'supersecret'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vulnerable_bank.db'
+# auth_routes.py - tokens are signed with the literal 'secret' (no constant,
+# it is inlined at the encode call):
+token = jwt.encode({'user_id': user[0], 'username': username, ...},
+                   'secret', algorithm='HS256')
 
-# JWT secret in auth_routes.py
-JWT_SECRET = 'secret'
+# auth.py - the same literal is used to verify:
+return jwt.decode(token, 'secret', algorithms=['HS256'])
 ```
 
 **Impact**:
-- Credentials exposed in source code
-- Same secrets used across all deployments
-- No ability to rotate secrets securely
-- Version control history exposes secrets
+- The signing key is in source (and version control), so anyone can forge a valid token for any `user_id`.
+- The admin endpoints in `admin_routes.py` have NO role check ("any authenticated user has access"), so any forged token reaches them.
+- `auth.py:_decode_token` (lines 20-29) also falls back to decoding **without** verifying the signature when HS256 verification fails, enabling an additional `alg:none` bypass even if the secret were unknown.
 
 **Exploitation**:
 ```python
-# Forge admin JWT token
-import jwt
-token = jwt.encode(
-    {'user_id': 1},  # Admin user ID
-    'secret',        # Known JWT secret
-    algorithm='HS256'
-)
+import jwt, requests
 
-# Use forged token
+# Forge a token for any user; user_id 1 is alice (role 'user' -- there is no
+# seeded admin, but no endpoint checks the role anyway).
+token = jwt.encode({'user_id': 1}, 'secret', algorithm='HS256')
+
+# Reach a real admin endpoint -- /api/admin/users dumps every user including
+# password hashes; /api/admin/dashboard-data leaks the hardcoded API/AWS keys.
 headers = {'Authorization': f'Bearer {token}'}
-response = requests.get('/api/admin', headers=headers)
+response = requests.get('/api/admin/users', headers=headers)
 ```
 
-### 4. Debug Mode in Production
-**Location**: `backend/app.py`
+### 4. Debug Mode and Leaky Error Messages
+**Location**: `backend/app.py:232` and `backend/app.py:74-77`
 ```python
-# Debug mode enabled
+# app.py:232 - debug mode is on (CWE-489): exposes the interactive Werkzeug
+# debugger, which allows arbitrary code execution via its console on any
+# unhandled exception.
 app.run(host='0.0.0.0', debug=True, port=5000)
 
-# Stack traces exposed
-@app.errorhandler(Exception)
-def handle_error(error):
-    return jsonify({
-        'error': str(error),
-        'traceback': traceback.format_exc()  # Exposing stack trace
-    }), 500
+# app.py:74-77 - the 500 handler returns the raw exception string (CWE-209).
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return jsonify({'error': str(error)}), 500   # str(error) can leak internals
 ```
 
 **Impact**:
-- Detailed stack traces exposed to users
-- Sensitive error details revealed
-- Debug information leakage
-- Potential for security control bypass
+- `debug=True` enables the Werkzeug debugger; reaching it on an unhandled error gives an attacker a Python console (RCE) on the server.
+- The 500 handler echoes `str(error)`, so internal details (SQL fragments, file paths, type errors) can leak into responses. The 404 handler does the same with `str(error)`.
 
 **Exploitation**:
 ```python
-# Trigger error to get stack trace
-response = requests.get('/api/transactions/invalid')
-print(response.json()['traceback'])  # View application internals
+# Send input that triggers an unhandled exception in a handler (e.g. a body
+# that breaks Decimal()/SQL parsing) to surface the raw error string, or -- in
+# debug mode -- the interactive Werkzeug traceback/console page.
+# Note: /api/transactions/<int:...> 404s at routing for non-integer ids
+# (the <int:> converter rejects them), so that path does not reach a 500.
 ```
 
 ## Prevention Methods
@@ -252,7 +207,14 @@ def transfer(current_user):
         
         # Execute transfer atomically
         with atomic_transaction():
-            # Lock accounts for update
+            # Lock accounts for update.
+            # NOTE: with_for_update() is a NO-OP on SQLite (DVBank's DB) -- it
+            # has no row-level locking. It only works on a backend that supports
+            # it, e.g. PostgreSQL. On SQLite, prevent the race with a conditional
+            # UPDATE that fails atomically when funds are short, e.g.
+            #   UPDATE user SET balance = balance - :amt
+            #   WHERE id = :sender AND balance >= :amt
+            # and check rowcount, or serialize writes (single writer / queue).
             sender = User.query.with_for_update().get(current_user.id)
             receiver = User.query.with_for_update().get(receiver.id)
             
@@ -306,25 +268,24 @@ import os
 from datetime import timedelta
 
 class Config:
-    # Load from environment variables
+    # Load secrets from environment variables, never hardcode them.
     SECRET_KEY = os.getenv('SECRET_KEY')
-    JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+    JWT_SIGNING_KEY = os.getenv('JWT_SIGNING_KEY')   # used to sign/verify JWTs
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
-    
+
     # Security settings
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
-    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+    TOKEN_EXPIRES = timedelta(hours=1)
     DEBUG = False
     TESTING = False
-    
+
     def __init__(self):
-        if not all([self.SECRET_KEY, self.JWT_SECRET_KEY, self.SQLALCHEMY_DATABASE_URI]):
+        if not all([self.SECRET_KEY, self.JWT_SIGNING_KEY, self.SQLALCHEMY_DATABASE_URI]):
             raise EnvironmentError("Missing required environment variables")
 
 # Example .env file
 """
 SECRET_KEY=your-secure-secret-key
-JWT_SECRET_KEY=your-secure-jwt-key
+JWT_SIGNING_KEY=your-secure-jwt-key
 DATABASE_URL=sqlite:///production.db
 """
 ```
@@ -332,28 +293,21 @@ DATABASE_URL=sqlite:///production.db
 ### 4. Secure Error Handling
 ```python
 import logging
-from werkzeug.exceptions import HTTPException
 
-# Configure secure logging
-logging.basicConfig(
-    filename='app.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+# Run with debug OFF in production -- never expose the Werkzeug debugger.
+app.run(host='0.0.0.0', debug=False, port=5000)
 
-@app.errorhandler(Exception)
-def handle_error(error):
-    # Log error details securely
-    if not isinstance(error, HTTPException):
-        logging.error(f"Unhandled error: {str(error)}", exc_info=True)
-        return jsonify({
-            'error': 'An internal error occurred'
-        }), 500
-    
-    # Handle known HTTP errors
-    return jsonify({
-        'error': error.description
-    }), error.code
+# Fix the 404/500 handlers to log details server-side and return a
+# generic message, instead of echoing str(error) to the client.
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    logging.error("Unhandled 500", exc_info=True)   # full details to logs only
+    return jsonify({'error': 'An internal error occurred'}), 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Not found'}), 404
 ```
 
 ## Practice Exercises
@@ -384,39 +338,9 @@ These hands-on exercises will help you understand and implement secure coding pr
    - Set up monitoring alerts
 
 ## Additional Resources
-To deepen your understanding of secure coding practices:
-
-1. [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
-2. [CERT Secure Coding Standards](https://wiki.sei.cmu.edu/confluence/display/seccode/SEI+CERT+Coding+Standards)
-3. [Python Security Best Practices](https://snyk.io/blog/python-security-best-practices/)
-4. [Flask Security Documentation](https://flask.palletsprojects.com/en/2.0.x/security/)
-5. [SQLAlchemy Security Considerations](https://docs.sqlalchemy.org/en/14/core/security.html)
-6. [NIST Secure Software Development Framework](https://csrc.nist.gov/Projects/ssdf)
-7. [CWE Top 25 Most Dangerous Software Weaknesses](https://cwe.mitre.org/top25/archive/2021/2021_cwe_top25.html)
-8. [Python Secure Development Guide](https://python-security.readthedocs.io/)
-9. [Banking Application Security Guidelines](https://www.ffiec.gov/cybersecurity.htm)
-10. [OWASP Financial Services Guidelines](https://owasp.org/www-pdf-archive/OWASP_Financial_Services_Guide_July_2013.pdf)
-
-### Related Tools
-1. [Bandit](https://bandit.readthedocs.io/) - Python security linter
-2. [Safety](https://pyup.io/safety/) - Python dependency checker
-3. [PyT](https://github.com/python-security/pyt) - Python security static analysis
-4. [Pylint Security Plugin](https://pylint.pycqa.org/en/latest/technical_reference/extensions.html#pylint-security)
-5. [SonarQube](https://www.sonarqube.org/) - Code quality and security scanner
-
-### Industry Standards
-1. [PCI DSS Secure Coding Requirements](https://www.pcisecuritystandards.org/documents/PCI_Secure_Software_Standard_v1.1.pdf)
-2. [ISO/IEC 27034 Application Security](https://www.iso.org/standard/44378.html)
-3. [NIST SP 800-53 Security Controls](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-53r5.pdf)
-
-### Practice Resources
-1. [OWASP Security Knowledge Framework](https://www.securityknowledgeframework.org/)
-2. [Secure Code Warrior](https://www.securecodewarrior.com/)
-3. [PyCQA Security Tools](https://github.com/PyCQA)
-
-### Banking-Specific Resources
-1. [FFIEC Information Security Booklet](https://ithandbook.ffiec.gov/it-booklets/information-security.aspx)
-2. [Banking Grade Security Framework](https://www.openbanking.org.uk/wp-content/uploads/Security-Profile-Version-1.1.2.pdf)
-3. [Financial API Security](https://openid.net/specs/openid-financial-api-part-2-1_0.html)
+1. [OWASP Secure Coding Practices Quick Reference](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
+2. [CWE Top 25 Most Dangerous Software Weaknesses](https://cwe.mitre.org/top25/)
+3. [SQLAlchemy Security Considerations](https://docs.sqlalchemy.org/en/14/core/security.html)
+4. [Bandit](https://bandit.readthedocs.io/) - Python security linter for catching these patterns
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments.

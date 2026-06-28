@@ -15,6 +15,9 @@ Welcome to the DVBank Lab course materials. This directory contains comprehensiv
 | [📘 Module 6: API Security](modules/06_api_security.md) | API Security Best Practices | - CORS configuration<br>- Rate limiting<br>- Error handling |
 | [📘 Module 7: Secure Coding](modules/07_secure_coding.md) | Secure Coding Practices | - Password security<br>- Secure logging<br>- Transaction integrity |
 | [📘 Module 8: Static Analysis](modules/08_static_analysis.md) | Automated Security Analysis | - Semgrep configuration<br>- Vulnerability detection<br>- Code pattern analysis |
+| [📘 Module 9: CSRF & Clickjacking](modules/09_csrf_and_clickjacking.md) | Cross-Site Request Forgery & UI Redressing | - Cookie vs token auth<br>- SameSite & CSRF tokens<br>- Anti-framing headers |
+| [📘 Module 10: Stored XSS & File Upload](modules/10_xss_and_file_upload.md) | Output Encoding & Upload Security | - Stored XSS sinks<br>- Token theft via XSS<br>- Unrestricted file upload |
+| [📘 Module 11: Auth Bypass & Business Logic](modules/11_auth_bypass_and_business_logic.md) | Identity & Money-Handling Flaws | - JWT none-alg bypass<br>- Insecure password reset<br>- Race conditions & negative amounts |
 
 ## 📖 Module Structure
 

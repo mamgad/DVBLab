@@ -59,9 +59,10 @@ Key areas to examine:
 ### 2.2 Backend Architecture (Python Flask)
 ```
 backend/
-├── routes/            # API endpoints
-├── models/            # Database models
-└── app.py            # Main application file
+├── routes/            # API endpoints (auth_routes, transaction_routes, admin_routes, upload_routes)
+├── models.py          # Database models (User, Transaction, LoginAttempt, AuditLog)
+├── auth.py            # JWT + cookie auth decorators
+└── app.py             # Main app: config, CORS, blueprint registration
 ```
 
 Key areas to examine:
@@ -109,7 +110,8 @@ Start by identifying publicly accessible functionality:
    - Account management
 
 ### 3.3 API Endpoint Mapping
-Create a comprehensive list of endpoints:
+Enumerate every route by grepping the four blueprints registered in `app.py`
+(`auth_bp`, `transaction_bp`, `admin_bp`, `upload_bp`). A few examples:
 ```
 POST /api/login
 POST /api/register
@@ -118,6 +120,9 @@ POST /api/transfer
 GET  /api/transactions
 PUT  /api/profile
 ```
+Don't stop at these — the richest attack surface is the **`/api/admin/*`**
+blueprint (`admin_routes.py`) and the **file-upload** routes (`upload_routes.py`),
+which are the highest-value recon targets.
 
 ## 4. Understanding Business Logic
 
@@ -184,14 +189,9 @@ Keep detailed records of:
    - Identify potential security boundaries between features
 
 ## Conclusion
-Understanding the application's structure, business logic, and attack surface is crucial before beginning any security testing. This methodical approach helps ensure thorough coverage and better identification of potential security issues.
-
-Remember:
-- Start with understanding the application's purpose and features
-- Map out the code structure and data flow
-- Document all entry points and user roles
-- Understand the business logic thoroughly
-- Create a systematic testing approach
+Mapping the application's structure, business logic, and attack surface first —
+especially the full route list across all four blueprints — ensures thorough
+coverage before any security testing begins.
 
 ## Additional Resources
 - OWASP Web Security Testing Guide

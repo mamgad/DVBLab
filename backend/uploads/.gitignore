@@ -1,0 +1,4 @@
+# Runtime upload target: ignore uploaded payloads, keep the directory tracked
+*
+!.gitignore
+!.gitkeep

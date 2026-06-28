@@ -16,6 +16,13 @@ This document details the intentional security vulnerabilities implemented in DV
 9. [Configuration Issues](#9-configuration-issues)
 10. [Dependency Issues](#10-dependency-issues)
 11. [Business Logic Flaws](#11-business-logic-flaws)
+12. [Cross-Site Request Forgery (CSRF)](#12-cross-site-request-forgery-csrf)
+13. [Clickjacking / Missing Security Headers](#13-clickjacking--missing-security-headers)
+14. [Stored XSS via Receipt Page](#14-stored-xss-via-receipt-page)
+15. [Unrestricted File Upload](#15-unrestricted-file-upload)
+16. [JWT Algorithm-Confusion / none Bypass](#16-jwt-algorithm-confusion--none-bypass)
+17. [Insecure Password Reset](#17-insecure-password-reset)
+18. [Broken Access Control in Money Transfers](#18-broken-access-control-in-money-transfers)
 
 ## 1. Authentication Issues
 
@@ -327,6 +334,101 @@ class Account(db.Model):
 - Monetary losses
 - Regulatory compliance issues
 
+## 12. Cross-Site Request Forgery (CSRF)
+
+### 12.1 Cookie-Authenticated Transfer with No CSRF Token
+**Location**: `backend/auth.py` (`cookie_auth`), `backend/routes/transaction_routes.py` (`/api/quickpay`), `backend/routes/auth_routes.py` (login cookie)
+```python
+# Login mirrors the JWT into a cookie with no SameSite/HttpOnly/Secure:
+resp.set_cookie('session_token', token, httponly=False, secure=False)
+
+# /api/quickpay authenticates from that cookie only and takes no CSRF token:
+@transaction_bp.route('/api/quickpay', methods=['POST'])
+@cookie_auth
+def quickpay(current_user):
+    to_user_id = request.form.get('to_user_id', ...)   # form-urlencoded -> cross-site form works
+```
+**Impact**:
+- A malicious page can transfer money from any logged-in victim (no token theft).
+- PoC: `docs/exploits/csrf_transfer.html`.
+
+## 13. Clickjacking / Missing Security Headers
+
+### 13.1 No X-Frame-Options / CSP
+**Location**: `backend/app.py` (`after_request`)
+```python
+# Permissive CORS is set, but no X-Frame-Options, no Content-Security-Policy,
+# no X-Content-Type-Options are ever sent.
+```
+**Impact**:
+- The app can be framed and UI-redressed. PoC: `docs/exploits/clickjacking.html`.
+
+## 14. Stored XSS via Receipt Page
+
+### 14.1 Unescaped Memo in Server-Rendered Receipt
+**Location**: `backend/routes/transaction_routes.py` (`/api/transactions/<id>/receipt`)
+```python
+def transaction_receipt(transaction_id):     # no auth, no ownership check (also IDOR)
+    html = f"""... <p><b>Memo:</b> {transaction.description or ''}</p> ..."""
+    return html                               # user-controlled memo interpolated raw
+```
+**Impact**:
+- Stored XSS executes in any viewer; steals the non-HttpOnly cookie / localStorage token.
+- IDOR: any receipt id is viewable without authentication.
+
+## 15. Unrestricted File Upload
+
+### 15.1 No Type/Size Validation, Raw Filename, Served Inline
+**Location**: `backend/routes/upload_routes.py`
+```python
+filename = uploaded.filename or 'upload.bin'   # raw client name -> ../ traversal
+dest = os.path.join(UPLOAD_DIR, filename)      # no extension/type/size checks
+uploaded.save(dest)
+return Response(data, content_type=mimetypes.guess_type(full_path)[0] or '...')  # SVG/HTML runs
+```
+**Impact**:
+- Uploaded SVG/HTML becomes stored XSS on the app origin; traversal via `../`.
+
+## 16. JWT Algorithm-Confusion / none Bypass
+
+### 16.1 Verification Fails Open
+**Location**: `backend/auth.py` (`_decode_token`)
+```python
+try:
+    return jwt.decode(token, 'secret', algorithms=['HS256'])
+except Exception:
+    return jwt.decode(token, options={'verify_signature': False, 'verify_exp': False},
+                      algorithms=['HS256', 'none'])   # accepts forged/unsigned tokens
+```
+**Impact**:
+- Forge `{"alg":"none","user_id":1}` to impersonate any user. PoC: `docs/exploits/jwt_forge.py`.
+
+## 17. Insecure Password Reset
+
+### 17.1 Predictable Token + Host-Header Poisoning
+**Location**: `backend/routes/auth_routes.py` (`/api/forgot-password`, `/api/reset-password`)
+```python
+token = hashlib.md5(username.encode()).hexdigest()        # predictable from public username
+reset_link = f"http://{request.headers.get('Host')}/...token={token}"  # host injection
+if token != hashlib.md5(username.encode()).hexdigest():   # no expiry, no ownership proof
+    ...
+```
+**Impact**:
+- Account takeover with no email access; reset links can be poisoned to an attacker host.
+
+## 18. Broken Access Control in Money Transfers
+
+### 18.1 Client-Controlled Payer + Unvalidated Amounts + Race Condition
+**Location**: `backend/routes/transaction_routes.py` (`/api/split-bill`, `/api/transfer`)
+```python
+from_user_id = data.get('from_user_id')   # payer taken from request -> pull from any account
+payer.balance -= amount                    # negative/overflow amounts unvalidated
+# /api/transfer check-then-act is non-atomic under SQLite autocommit (app.py) -> double-spend
+```
+**Impact**:
+- Theft from arbitrary accounts, money creation via negative amounts, overdraft via the
+  race condition. PoC: `docs/exploits/race_double_spend.py`.
+
 ## Remediation Summary
 
 For secure implementations and fixes, refer to:
@@ -335,5 +437,8 @@ For secure implementations and fixes, refer to:
 3. [Module 5: Input Validation](../course/modules/05_input_validation.md)
 4. [Module 6: API Security](../course/modules/06_api_security.md)
 5. [Module 7: Secure Coding](../course/modules/07_secure_coding.md)
+6. [Module 9: CSRF & Clickjacking](../course/modules/09_csrf_and_clickjacking.md)
+7. [Module 10: Stored XSS & File Upload](../course/modules/10_xss_and_file_upload.md)
+8. [Module 11: Auth Bypass & Business Logic](../course/modules/11_auth_bypass_and_business_logic.md)
 
 ⚠️ **Remember**: This is a deliberately vulnerable application for educational purposes. Never use these patterns in production code. 

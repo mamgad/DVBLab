@@ -57,8 +57,8 @@ def login():
         )
         db.session.add(login_attempt)
         db.session.commit()
-        
-        return jsonify({
+
+        resp = jsonify({
             'token': token,
             'user': {
                 'id': user_obj.id,
@@ -66,6 +66,13 @@ def login():
                 'balance': float(user_obj.balance)
             }
         })
+        # VULNERABILITY: CSRF (CWE-352) + insecure cookie (CWE-1004/CWE-614)
+        # The JWT is mirrored into a cookie with NO SameSite, NO HttpOnly and
+        # NO Secure flag, and cookie-authenticated endpoints (see /api/quickpay)
+        # require no CSRF token. This makes cross-site request forgery possible
+        # and lets any XSS payload read the session cookie from document.cookie.
+        resp.set_cookie('session_token', token, httponly=False, secure=False)
+        return resp
     
     login_attempt = LoginAttempt(
         username=username,
@@ -147,6 +154,60 @@ def update_password(current_user):
         db.session.commit()
         return jsonify({'message': 'Password updated'})
     return jsonify({'error': 'User not found'}), 404 
+
+# ============================================================
+# VULNERABILITY: Insecure Password Reset
+#   - Predictable reset token (CWE-330): token = md5(username), so an attacker
+#     can derive any user's token without ever triggering a reset email.
+#   - Host header injection / reset-link poisoning (CWE-644): the reset URL is
+#     built from the client-controlled Host header.
+#   - Broken authentication / account takeover (CWE-640): no expiry, no rate
+#     limiting, no proof of account ownership.
+# Semgrep rules: python.lang.security.audit.weak-token-generation
+# ============================================================
+@auth_bp.route('/api/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json()
+    username = data.get('username', '')
+
+    user = User.query.filter_by(username=username).first()
+    # Predictable token derived purely from the (public) username
+    token = hashlib.md5(username.encode()).hexdigest()
+    if user:
+        user.reset_token = token
+        db.session.commit()
+
+    # Reset link built from the attacker-controllable Host header
+    host = request.headers.get('Host')
+    reset_link = f"http://{host}/reset-password?user={username}&token={token}"
+
+    return jsonify({
+        'message': 'If the account exists, a reset link has been sent',
+        'reset_link': reset_link,
+        'debug_token': token
+    })
+
+
+@auth_bp.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    username = data.get('username', '')
+    token = data.get('token', '')
+    new_password = data.get('new_password', '')
+
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    # Token is just md5(username) - guessable, never expires, no ownership proof
+    if token != hashlib.md5(username.encode()).hexdigest():
+        return jsonify({'error': 'Invalid reset token'}), 403
+
+    user.set_password(new_password)
+    user.reset_token = None
+    db.session.commit()
+    return jsonify({'message': 'Password has been reset'})
+
 
 @auth_bp.route('/api/profile/import', methods=['POST'])
 @token_required

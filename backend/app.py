@@ -4,6 +4,7 @@ from models import db, User, Transaction
 from routes.auth_routes import auth_bp
 from routes.transaction_routes import transaction_bp
 from routes.admin_routes import admin_bp
+from routes.upload_routes import upload_bp
 import os
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -63,6 +64,7 @@ db.init_app(app)
 app.register_blueprint(auth_bp)
 app.register_blueprint(transaction_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(upload_bp)
 
 # Error handlers
 @app.errorhandler(404)

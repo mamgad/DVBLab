@@ -16,6 +16,9 @@ class User(db.Model):
     role = db.Column(db.String(20), default='user')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
+    # Password-reset token (intentionally predictable - see auth_routes.forgot_password)
+    reset_token = db.Column(db.String(64), nullable=True)
+    avatar_url = db.Column(db.String(255), nullable=True)
 
     sent_transactions = db.relationship('Transaction', foreign_keys='Transaction.sender_id', backref='sender', lazy=True)
     received_transactions = db.relationship('Transaction', foreign_keys='Transaction.receiver_id', backref='receiver', lazy=True)

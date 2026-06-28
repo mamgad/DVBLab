@@ -1,87 +1,128 @@
 # Module 8: Automated Static Analysis with Semgrep
 
 ## Overview
-Static Analysis is a method of debugging and analyzing source code without actually executing the program. It helps identify potential bugs, security vulnerabilities, and code quality issues early in the development process. By examining code patterns and data flows, static analysis tools can detect issues that might be missed during manual code review or dynamic testing.
+Static analysis inspects source code without running it, flagging security bugs and bad patterns by matching code structure and data flow. It catches issues that manual review and dynamic testing often miss.
 
 ## What is Semgrep?
-Semgrep (Semantic Grep) is a fast, open-source static analysis tool that helps developers find bugs, detect vulnerabilities, and enforce code standards. It's language-aware and uses simple pattern-matching rules that look like the code you're searching for. Unlike traditional grep tools, Semgrep understands code structure and can perform sophisticated analysis while remaining easy to use.
-
-Key features:
-- Fast and lightweight
-- Language-aware analysis
-- Simple, grep-like syntax
-- Extensive rule registry
-- CI/CD integration support
+Semgrep (Semantic Grep) is a fast, open-source static analysis tool. It is language-aware: rules look like the code you are searching for, but match on structure rather than raw text, so it finds vulnerabilities that plain `grep` cannot.
 
 ## Installation
-Getting started with Semgrep is straightforward. Choose the installation method that best suits your environment:
-
-1. **Using pip (Python Package Manager)**:
 ```bash
 pip install semgrep
 ```
 
-2. **Using Docker**:
-```bash
-docker pull returntocorp/semgrep
-```
-
-3. **Using Homebrew (macOS)**:
-```bash
-brew install semgrep
-```
-
 ## Basic Usage
-Semgrep provides several ways to scan your code. Here are the fundamental commands you'll use most often:
-
-1. **Run a basic scan**:
 ```bash
-semgrep scan
-```
+# Scan a directory with a ruleset
+semgrep --config "p/python" backend/
 
-2. **Scan with specific rulesets**:
-```bash
-semgrep --config "p/python" .
-```
-
-3. **Output formats**:
-```bash
-semgrep scan --json > results.json
-semgrep scan --sarif > results.sarif
+# Machine-readable output
+semgrep --config "p/python" backend/ --json > results.json
+semgrep --config "p/python" backend/ --sarif > results.sarif
 ```
 
 ## Real-World Example: Scanning Our Banking Application
-Let's examine how Semgrep helps identify security issues in our banking application. We ran Semgrep on our codebase, and it found 14 security issues. Here's a detailed analysis of each category:
+Running `semgrep --config "p/python" backend/` from the repo root produces (numbers below are from this repo and will drift as code changes):
 
-### 1. Hardcoded Secrets
-**Location**: `backend/app.py`
+```
+Ran 151 rules on 8 files: 38 findings.
+```
+
+The findings below are the highest-impact ones, each tied to the real file and the Semgrep rule id that flags it.
+
+### 1. Weak Password Hashing (MD5)
+**Location**: `backend/models.py:26-30`
+**Rule**: `python.lang.security.audit.md5-used-as-password.md5-used-as-password`, `python.lang.security.insecure-hash-algorithms-md5.insecure-hash-algorithm-md5` (CWE-327/CWE-916)
+```python
+# ❌ Vulnerable Code (backend/models.py)
+def set_password(self, password):
+    self.password_hash = hashlib.md5(password.encode()).hexdigest()
+
+def check_password(self, password):
+    return self.password_hash == hashlib.md5(password.encode()).hexdigest()
+
+# ✅ Secure Fix — use a salted, slow password hash
+from werkzeug.security import generate_password_hash, check_password_hash
+
+def set_password(self, password):
+    self.password_hash = generate_password_hash(password)  # PBKDF2 + salt
+
+def check_password(self, password):
+    return check_password_hash(self.password_hash, password)
+```
+
+**Risk**: MD5 is fast and unsalted, so stolen hashes fall to GPU brute force and precomputed rainbow tables. A purpose-built hash (`werkzeug.security`, or `bcrypt`) adds a per-user salt and a tunable work factor.
+
+### 2. Insecure YAML Deserialization
+**Location**: `backend/routes/auth_routes.py:218`
+**Rule**: `python.lang.security.deserialization.avoid-pyyaml-load.avoid-pyyaml-load` (CWE-502)
+```python
+# ❌ Vulnerable Code (backend/routes/auth_routes.py)
+profile_data = yaml.load(profile_yaml, Loader=yaml.Loader)
+
+# ✅ Secure Fix — only construct plain data types
+profile_data = yaml.safe_load(profile_yaml)
+```
+
+**Risk**: `yaml.Loader` constructs arbitrary Python objects, so attacker-supplied YAML (e.g. `!!python/object/apply:os.system`) runs commands on the server. `yaml.safe_load` parses only basic types.
+
+### 3. JWT Security Issues
+**Location**: `backend/auth.py:20-29`
+**Rules**: `python.jwt.security.jwt-none-alg.jwt-python-none-alg`, `python.jwt.security.unverified-jwt-decode.unverified-jwt-decode`, `python.jwt.security.jwt-hardcode.jwt-python-hardcoded-secret` (CWE-347)
+```python
+# ❌ Vulnerable Code (backend/auth.py)
+def _decode_token(token):
+    try:
+        # hardcoded secret
+        return jwt.decode(token, 'secret', algorithms=['HS256'])
+    except Exception:
+        # INSECURE FALLBACK: accepts unsigned / alg:none tokens
+        return jwt.decode(
+            token,
+            options={'verify_signature': False},
+            algorithms=['HS256', 'none'],
+        )
+
+# ✅ Secure Fix — no fallback, secret from env, algorithm pinned
+import os
+JWT_SECRET = os.environ['JWT_SECRET']
+
+def _decode_token(token):
+    return jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+```
+
+**Risk**: This is worse than a hardcoded secret. The `except` branch re-decodes the token with `verify_signature` off and `none` allowed, so an attacker can forge any payload (e.g. `{"user_id": 1, "alg": "none"}`) and impersonate any user. The fix must remove the fallback, pin `algorithms=['HS256']`, and load the secret from the environment.
+
+### 4. SQL Injection
+**Location**: `backend/routes/transaction_routes.py:93` (also `backend/routes/auth_routes.py:36`)
+**Rule**: `python.flask.security.injection.tainted-sql-string.tainted-sql-string` (CWE-89)
+```python
+# ❌ Vulnerable Code (backend/routes/transaction_routes.py)
+query = f"SELECT * FROM \"transaction\" WHERE ... description LIKE '%{search_term}%'"
+
+# ✅ Secure Fix — parameterized query
+from sqlalchemy import text
+query = text("SELECT * FROM \"transaction\" WHERE description LIKE :term")
+db.session.execute(query, {'term': f'%{search_term}%'})
+```
+
+**Risk**: User input concatenated into SQL lets an attacker read or modify the whole database.
+
+### 5. Hardcoded Secret Key
+**Location**: `backend/app.py:18`
 ```python
 # ❌ Vulnerable Code (backend/app.py)
 app.config['SECRET_KEY'] = 'supersecret'
 
 # ✅ Secure Fix
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
 ```
 
-**Risk**: Hardcoded secrets in source code can be exposed through repository access, leading to potential system compromise.
+**Risk**: A secret committed to source control is readable by anyone with repo access and enables session/token forgery.
 
-### 2. SQL Injection Vulnerabilities
-**Location**: `backend/routes/auth_routes.py`
-```python
-# ❌ Vulnerable Code (backend/routes/auth_routes.py)
-query = f"SELECT * FROM user WHERE username = '{username}'"
-user = db.session.execute(query).fetchone()
-
-# ✅ Secure Fix
-from sqlalchemy import text
-query = text("SELECT * FROM user WHERE username = :username")
-user = db.session.execute(query, {'username': username}).fetchone()
-```
-
-**Risk**: SQL injection can lead to unauthorized data access or manipulation, potentially compromising the entire database.
-
-### 3. Debug Mode in Production
-**Location**: `backend/app.py`
+### 6. Debug Mode in Production
+**Location**: `backend/app.py:232`
+**Rule**: `python.flask.security.audit.debug-enabled.debug-enabled` (CWE-489)
 ```python
 # ❌ Vulnerable Code (backend/app.py)
 app.run(host='0.0.0.0', debug=True, port=5000)
@@ -91,133 +132,24 @@ debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
 app.run(host='0.0.0.0', debug=debug, port=5000)
 ```
 
-**Risk**: Debug mode exposes sensitive information and stack traces, providing attackers with valuable system insights.
+**Risk**: Flask debug mode exposes stack traces and the Werkzeug interactive debugger (remote code execution if the PIN is bypassed).
 
-### 4. JWT Security Issues
-**Location**: `backend/auth.py`
-```python
-# ❌ Vulnerable Code (backend/auth.py)
-data = jwt.decode(token, 'secret', algorithms=['HS256'])
-
-# ✅ Secure Fix
-secret_key = os.getenv('JWT_SECRET_KEY')
-data = jwt.decode(token, secret_key, algorithms=['HS256'])
-```
-
-**Risk**: Hardcoded JWT secrets can be compromised, leading to token forgery and unauthorized access.
-
-### 5. Password Validation
-**Location**: `backend/routes/auth_routes.py`
-```python
-# ❌ Vulnerable Code
-user.set_password(password)
-
-# ✅ Secure Fix
-from django.contrib.auth.password_validation import validate_password
-
-try:
-    validate_password(password)
-    user.set_password(password)
-except ValidationError as e:
-    raise ValueError(str(e))
-```
-
-**Risk**: Weak passwords can make accounts vulnerable to brute force attacks and compromise user security.
+### Also worth noting
+- **Reflected-origin CORS** — `backend/app.py:49-58` reflects any `Origin` back in `Access-Control-Allow-Origin` together with `Access-Control-Allow-Credentials: true` (CWE-942). Confirmed by manual review; `p/python` does not ship a dedicated rule for it. Fix: allow-list specific origins.
 
 ## Understanding Semgrep Results
-When analyzing Semgrep scan results, it's important to understand the output and prioritize findings. Our scan revealed:
+From the scan above (`semgrep --config "p/python" backend/`):
 
-- Total files scanned: 36
-- Total findings: 14
-- Rules run: 866
+- Files scanned: 8 (git-tracked Python files under `backend/`)
+- Rules run: 151
+- Findings: 38 (all blocking)
 
-Key findings breakdown:
-1. Hardcoded configurations (2 instances)
-2. SQL injection vulnerabilities (4 instances)
-3. Debug mode issues (3 instances)
-4. JWT security problems (3 instances)
-5. Password validation issues (2 instances)
+Note: counts depend on the ruleset, the Semgrep version, and which files are tracked by git, so treat them as a snapshot, not a fixed figure. By rule, the headline issues include MD5 password hashing, JWT `none`-algorithm decode, PyYAML insecure load, tainted-string SQL injection, and Flask `debug=True` (**1 instance**, at `app.py:232`).
 
-## Remediation Steps
-After identifying vulnerabilities, follow these structured steps to implement fixes:
-
-1. **Environment Variables**
-```bash
-# .env
-SECRET_KEY=your-secure-secret
-JWT_SECRET=your-jwt-secret
-FLASK_DEBUG=False
-```
-
-2. **Use ORM or Parameterized Queries**
-```python
-# Using SQLAlchemy ORM
-user = User.query.filter_by(username=username).first()
-```
-
-3. **Configuration Management**
-```python
-# config.py
-class ProductionConfig:
-    DEBUG = False
-    SECRET_KEY = os.getenv('SECRET_KEY')
-    JWT_SECRET = os.getenv('JWT_SECRET')
-```
-
-## Best Practices
-To get the most out of static analysis, follow these best practices:
-
-1. **Regular Scanning**
-   - Include Semgrep in CI/CD pipeline
-   - Scan before merging code
-   - Regular security audits
-
-2. **Rule Management**
-   - Use industry-standard rulesets
-   - Create custom rules for project-specific needs
-   - Keep rules updated
-
-3. **Integration with Development Workflow**
-   - Pre-commit hooks
-   - IDE integration
-   - Automated PR checks
-
-## Exercises
-Practice using Semgrep with these hands-on exercises:
-
-1. **Run Semgrep with Different Rulesets**
-```bash
-# Python security rules
-semgrep --config "p/python" .
-
-# OWASP Top 10
-semgrep --config "p/owasp-top-ten" .
-
-# Custom ruleset
-semgrep --config path/to/rules.yaml .
-```
-
-2. **Create Custom Rules**
-```yaml
-# custom-rules.yaml
-rules:
-  - id: detect-hardcoded-secret
-    pattern: "$X = 'secret'"
-    message: "Hardcoded secret detected"
-    severity: ERROR
-```
-
-3. **Analyze and Fix Findings**
-- Run Semgrep scan
-- Categorize findings by severity
-- Create remediation plan
-- Implement fixes
-- Verify with follow-up scan
+## Remediation
+Each finding above includes its own **Secure Fix** block — apply those directly. The recurring theme: load secrets from the environment, use parameterized queries / ORM, use `safe_load` and salted password hashes, and never disable signature verification.
 
 ## Additional Resources
-To deepen your understanding of static analysis and Semgrep:
-
 1. [Semgrep Official Documentation](https://semgrep.dev/docs/)
 2. [Semgrep Rule Registry](https://semgrep.dev/explore)
 3. [OWASP Code Review Guide](https://owasp.org/www-project-code-review-guide/)
-4. [Python Security Best Practices](https://python-security.readthedocs.io/) 

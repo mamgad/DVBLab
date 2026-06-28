@@ -70,10 +70,13 @@ When analyzing security scan results, it's essential to understand how to interp
    CVE-2024-53861
 ```
 
-**Code Review Note:** Focus your review on:
-- JWT token generation and validation
-- Algorithm specification in JWT operations
-- Issuer verification implementations
+**Code Review Note:** This CVE is a valid *dependency* finding for PyJWT 2.1.0,
+but DVBank does no issuer verification, so don't hunt for that code path. The
+real, more severe JWT *code* flaw is the unverified-signature fallback in
+`auth.py` `_decode_token` (the `except` branch decodes with
+`verify_signature=False` and accepts `alg:none`, CWE-347). Review:
+- The `jwt.decode` calls in `auth.py` — is the signature always verified?
+- Whether the algorithm is pinned on decode (no `none` fallback)
 
 3. **Flask-CORS Vulnerabilities (Medium)**
 ```
@@ -83,10 +86,11 @@ When analyzing security scan results, it's essential to understand how to interp
    CVE-2024-6221
 ```
 
-**Code Review Note:** Carefully examine:
-- CORS configuration in app initialization
-- Custom CORS headers and settings
-- Internal network access controls
+**Code Review Note:** This CVE is a valid dependency finding, but `flask_cors`
+is imported and **never instantiated** in DVBank — so there is no `CORS(app, ...)`
+to review. The real CORS misconfiguration is the hand-rolled `@app.after_request`
+in `app.py:49-58` that reflects any `Origin` and sets
+`Access-Control-Allow-Credentials: true`. Review that hook, not a `CORS()` call.
 
 ## 💡 Code Review Checklist
 
@@ -104,8 +108,8 @@ When reviewing code that uses external dependencies, pay attention to known vuln
 
 #### YAML Processing
 ```python
-# Vulnerable Pattern
-profile_data = yaml.load(profile_yaml)  # Unsafe loading
+# Vulnerable Pattern (DVBank's actual code)
+profile_data = yaml.load(profile_yaml, Loader=yaml.Loader)  # explicit unsafe loader
 
 # Secure Pattern
 profile_data = yaml.safe_load(profile_yaml)  # Always use safe_load
@@ -113,14 +117,16 @@ profile_data = yaml.safe_load(profile_yaml)  # Always use safe_load
 
 #### JWT Handling
 ```python
-# Vulnerable Pattern
-token = jwt.encode(payload, key, algorithm='HS256')
-data = jwt.decode(token, key)  # No algorithm verification
+# Vulnerable Pattern: signature not verified / no pinned algorithm
+data = jwt.decode(token, key, options={'verify_signature': False})  # accepts forgeries
 
-# Secure Pattern
-token = jwt.encode(payload, key, algorithm='HS512')
-data = jwt.decode(token, key, algorithms=['HS512'])  # Explicit algorithm
+# Secure Pattern: always verify and pin the algorithm (HS256 is fine — the fix is
+# pinning + verifying, not a different HMAC size)
+data = jwt.decode(token, key, algorithms=['HS256'])
 ```
+> Note: in PyJWT 2.x, `jwt.decode(token, key)` without `algorithms=` *raises*
+> `DecodeError` — it does not silently skip verification. The real DVBank bug is
+> the `except` fallback in `auth.py` that passes `verify_signature=False`.
 
 ## 🛠️ Hands-on Exercise: Code Review
 
@@ -177,8 +183,8 @@ The profile import functionality uses unsafe YAML deserialization,
 allowing arbitrary code execution through crafted YAML payloads.
 
 Technical Details:
-- CVE-2020-14343
-- Unsafe yaml.load() with default Loader
+- CVE-2020-14343 (dependency finding)
+- Unsafe yaml.load() with an explicit unsafe Loader (Loader=yaml.Loader)
 - Processes untrusted user input
 
 Impact:
@@ -186,9 +192,11 @@ An attacker can execute arbitrary code on the server by submitting
 a specially crafted YAML payload through the profile import API.
 
 Recommendation:
-1. Upgrade PyYAML to >=5.4
-2. Replace yaml.load() with yaml.safe_load()
-3. Implement input validation for profile data
+1. Replace yaml.load(profile_yaml, Loader=yaml.Loader) with yaml.safe_load() —
+   this is the actual fix. Upgrading PyYAML does NOT remediate it: CVE-2020-14343
+   hardened the *default* loader, but code passing an explicit Loader=yaml.Loader
+   executes arbitrary code in every PyYAML version.
+2. Implement input validation for profile data
 ```
 
 ## 📚 Additional Resources

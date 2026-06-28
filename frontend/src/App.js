@@ -5,6 +5,7 @@ import TransferForm from './components/TransferForm';
 import TransactionList from './components/TransactionList';
 import LoginPage from './components/LoginPage';
 import PasswordUpdate from './components/PasswordUpdate';
+import AvatarUpload from './components/AvatarUpload';
 import { API_BASE_URL } from './config';
 import './index.css';
 
@@ -421,6 +422,8 @@ const Profile = ({ user }) => {
             </div>
           )}
         </div>
+
+        <AvatarUpload />
       </div>
     </div>
   );
