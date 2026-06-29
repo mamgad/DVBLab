@@ -1,0 +1,44 @@
+[
+  {
+    "file": "eval/decoys/decoy_sql_parameterized.py",
+    "line": 12,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection",
+    "message": "spurious finding on decoy: sql-injection (CWE-89)"
+  },
+  {
+    "file": "eval/decoys/decoy_subprocess_constant.py",
+    "line": 12,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection",
+    "message": "spurious finding on decoy: command-injection (CWE-78)"
+  },
+  {
+    "file": "eval/decoys/decoy_yaml_safe_load.py",
+    "line": 12,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection",
+    "message": "spurious finding on decoy: insecure-deserialization (CWE-502)"
+  },
+  {
+    "file": "eval/decoys/decoy_ast_literal_eval.py",
+    "line": 13,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection",
+    "message": "spurious finding on decoy: code-injection / eval (CWE-95)"
+  },
+  {
+    "file": "eval/decoys/decoy_md5_checksum.py",
+    "line": 14,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection",
+    "message": "spurious finding on decoy: weak-crypto / MD5 (CWE-328/CWE-916)"
+  },
+  {
+    "file": "eval/decoys/decoy_html_escape.py",
+    "line": 15,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection",
+    "message": "spurious finding on decoy: xss / ssti (CWE-79/CWE-1336)"
+  }
+]

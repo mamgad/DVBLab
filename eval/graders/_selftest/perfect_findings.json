@@ -1,0 +1,373 @@
+[
+  {
+    "file": "backend/auth.py",
+    "line": 22,
+    "cwe": "CWE-347",
+    "severity": "critical",
+    "message": "perfect-detector fixture for jwt-none-alg-bypass"
+  },
+  {
+    "file": "backend/models.py",
+    "line": 26,
+    "cwe": "CWE-916",
+    "severity": "high",
+    "message": "perfect-detector fixture for weak-password-hash-md5"
+  },
+  {
+    "file": "backend/app.py",
+    "line": 18,
+    "cwe": "CWE-798",
+    "severity": "high",
+    "message": "perfect-detector fixture for hardcoded-flask-secret"
+  },
+  {
+    "file": "backend/app.py",
+    "line": 51,
+    "cwe": "CWE-942",
+    "severity": "high",
+    "message": "perfect-detector fixture for cors-reflect-origin"
+  },
+  {
+    "file": "backend/app.py",
+    "line": 232,
+    "cwe": "CWE-489",
+    "severity": "medium",
+    "message": "perfect-detector fixture for debug-mode-enabled"
+  },
+  {
+    "file": "backend/app.py",
+    "line": 71,
+    "cwe": "CWE-209",
+    "severity": "low",
+    "message": "perfect-detector fixture for verbose-error-disclosure"
+  },
+  {
+    "file": "backend/app.py",
+    "line": 89,
+    "cwe": "CWE-359",
+    "severity": "medium",
+    "message": "perfect-detector fixture for pii-ssn-exposure"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 21,
+    "cwe": "CWE-89",
+    "severity": "high",
+    "message": "perfect-detector fixture for sqli-register"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 36,
+    "cwe": "CWE-89",
+    "severity": "critical",
+    "message": "perfect-detector fixture for sqli-login"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 74,
+    "cwe": "CWE-1004",
+    "severity": "medium",
+    "message": "perfect-detector fixture for insecure-session-cookie"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 146,
+    "cwe": "CWE-639",
+    "severity": "critical",
+    "message": "perfect-detector fixture for idor-update-password"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 175,
+    "cwe": "CWE-330",
+    "severity": "high",
+    "message": "perfect-detector fixture for predictable-reset-token"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 181,
+    "cwe": "CWE-644",
+    "severity": "medium",
+    "message": "perfect-detector fixture for host-header-reset-poisoning"
+  },
+  {
+    "file": "backend/routes/auth_routes.py",
+    "line": 214,
+    "cwe": "CWE-502",
+    "severity": "critical",
+    "message": "perfect-detector fixture for yaml-deserialization"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 47,
+    "cwe": "CWE-89",
+    "severity": "high",
+    "message": "perfect-detector fixture for sqli-get-transactions"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 89,
+    "cwe": "CWE-89",
+    "severity": "high",
+    "message": "perfect-detector fixture for sqli-search"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 12,
+    "cwe": "CWE-840",
+    "severity": "high",
+    "message": "perfect-detector fixture for biz-logic-negative-amount"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 22,
+    "cwe": "CWE-362",
+    "severity": "high",
+    "message": "perfect-detector fixture for race-double-spend"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 122,
+    "cwe": "CWE-352",
+    "severity": "high",
+    "message": "perfect-detector fixture for csrf-quickpay"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 160,
+    "cwe": "CWE-79",
+    "severity": "high",
+    "message": "perfect-detector fixture for stored-xss-receipt"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 160,
+    "cwe": "CWE-639",
+    "severity": "high",
+    "message": "perfect-detector fixture for idor-receipt"
+  },
+  {
+    "file": "backend/routes/transaction_routes.py",
+    "line": 199,
+    "cwe": "CWE-639",
+    "severity": "critical",
+    "message": "perfect-detector fixture for broken-access-split-bill"
+  },
+  {
+    "file": "backend/routes/upload_routes.py",
+    "line": 24,
+    "cwe": "CWE-434",
+    "severity": "high",
+    "message": "perfect-detector fixture for unrestricted-file-upload"
+  },
+  {
+    "file": "backend/routes/upload_routes.py",
+    "line": 32,
+    "cwe": "CWE-22",
+    "severity": "high",
+    "message": "perfect-detector fixture for upload-path-traversal"
+  },
+  {
+    "file": "backend/routes/upload_routes.py",
+    "line": 53,
+    "cwe": "CWE-79",
+    "severity": "high",
+    "message": "perfect-detector fixture for stored-xss-upload-serve"
+  },
+  {
+    "file": "backend/requirements.txt",
+    "line": 1,
+    "cwe": "CWE-1395",
+    "severity": "high",
+    "message": "perfect-detector fixture for vulnerable-dependencies"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 18,
+    "cwe": "CWE-798",
+    "severity": "high",
+    "message": "perfect-detector fixture for hardcoded-secrets-block"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 36,
+    "cwe": "CWE-78",
+    "severity": "critical",
+    "message": "perfect-detector fixture for cmdi-generate-report"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 49,
+    "cwe": "CWE-78",
+    "severity": "critical",
+    "message": "perfect-detector fixture for cmdi-system-status"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 59,
+    "cwe": "CWE-78",
+    "severity": "critical",
+    "message": "perfect-detector fixture for cmdi-ping"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 79,
+    "cwe": "CWE-78",
+    "severity": "critical",
+    "message": "perfect-detector fixture for cmdi-dns-lookup"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 99,
+    "cwe": "CWE-918",
+    "severity": "high",
+    "message": "perfect-detector fixture for ssrf-webhook-test"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 115,
+    "cwe": "CWE-918",
+    "severity": "high",
+    "message": "perfect-detector fixture for ssrf-fetch-avatar"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 131,
+    "cwe": "CWE-22",
+    "severity": "high",
+    "message": "perfect-detector fixture for path-traversal-download"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 140,
+    "cwe": "CWE-22",
+    "severity": "high",
+    "message": "perfect-detector fixture for path-traversal-view-log"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 155,
+    "cwe": "CWE-611",
+    "severity": "high",
+    "message": "perfect-detector fixture for xxe-import-data"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 179,
+    "cwe": "CWE-502",
+    "severity": "critical",
+    "message": "perfect-detector fixture for pickle-deser-import-session"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 208,
+    "cwe": "CWE-915",
+    "severity": "high",
+    "message": "perfect-detector fixture for mass-assignment-update-user"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 228,
+    "cwe": "CWE-1336",
+    "severity": "critical",
+    "message": "perfect-detector fixture for ssti-preview-email"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 244,
+    "cwe": "CWE-601",
+    "severity": "medium",
+    "message": "perfect-detector fixture for open-redirect"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 255,
+    "cwe": "CWE-117",
+    "severity": "low",
+    "message": "perfect-detector fixture for log-injection-audit"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 280,
+    "cwe": "CWE-285",
+    "severity": "high",
+    "message": "perfect-detector fixture for broken-access-list-users"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 295,
+    "cwe": "CWE-285",
+    "severity": "high",
+    "message": "perfect-detector fixture for broken-access-delete-user"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 310,
+    "cwe": "CWE-1333",
+    "severity": "medium",
+    "message": "perfect-detector fixture for redos-search-users"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 330,
+    "cwe": "CWE-95",
+    "severity": "critical",
+    "message": "perfect-detector fixture for code-injection-calculate"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 343,
+    "cwe": "CWE-95",
+    "severity": "critical",
+    "message": "perfect-detector fixture for code-injection-run-script"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 355,
+    "cwe": "CWE-95",
+    "severity": "critical",
+    "message": "perfect-detector fixture for code-injection-format-data"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 372,
+    "cwe": "CWE-328",
+    "severity": "medium",
+    "message": "perfect-detector fixture for weak-hash-sha1"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 387,
+    "cwe": "CWE-328",
+    "severity": "medium",
+    "message": "perfect-detector fixture for weak-hash-md5-token"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 402,
+    "cwe": "CWE-798",
+    "severity": "high",
+    "message": "perfect-detector fixture for hardcoded-password-master-login"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 418,
+    "cwe": "CWE-617",
+    "severity": "medium",
+    "message": "perfect-detector fixture for assert-authorization"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 432,
+    "cwe": "CWE-377",
+    "severity": "low",
+    "message": "perfect-detector fixture for insecure-temp-file"
+  },
+  {
+    "file": "backend/routes/admin_routes.py",
+    "line": 448,
+    "cwe": "CWE-200",
+    "severity": "high",
+    "message": "perfect-detector fixture for secrets-leak-dashboard"
+  }
+]

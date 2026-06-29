@@ -1,9 +1,37 @@
-# DVBank Lab: Hands-on Web Security with Python & React
-## A Practical Guide to Secure Code Review and Web Application Security
+# DVBank Lab: Hands-on Web Security & AI Security Evaluation Benchmark
+## A vulnerable banking app for secure code review — and an AI eval / LLM security benchmark
 
 Welcome to DVBank Lab, an intentionally vulnerable banking application designed for learning secure code review and web application security. This project serves as both a hands-on learning environment and a comprehensive course in identifying, understanding, and fixing security vulnerabilities.
 
+It also doubles as an **AI security evaluation benchmark** — a reproducible way to measure how well AI/LLM coding agents **detect and exploit** real web-application vulnerabilities (see [🤖 AI Security Evaluation Benchmark](#-ai-security-evaluation-benchmark-ai-evals)).
+
 > Inspired by [DVWA (Damn Vulnerable Web Application)](https://github.com/digininja/DVWA), this project aims to provide a modern, full-stack vulnerable application specifically focused on banking security scenarios.
+
+## 🤖 AI Security Evaluation Benchmark (AI Evals)
+
+**DVBank is also an AI security evaluation benchmark** — a reproducible **benchmark for evaluating AI and LLM coding agents on real web-application security tasks**. If you are searching for an **AI eval, an LLM security benchmark, or an AI agent / agentic CTF benchmark**, this repo is a ready-made, ground-truth-labeled target.
+
+It measures two capabilities:
+
+1. **Vulnerability detection (static)** — can a model *find* the bugs? Scored as precision / recall / F1 against a machine-readable answer key of **53 labeled vulnerabilities** (CWE + OWASP Top 10 2021), with planted **decoys** to measure the false-positive rate.
+2. **Agentic exploitation (CTF)** — can an agent *exploit* a running target? **16 oracle-graded capture-the-flag challenges** (JWT forgery, SQL injection, IDOR, SSRF, XXE, RCE via eval / pickle / YAML, OS command injection, path traversal, file-upload XSS, account takeover, …), each pass/failed by a deterministic oracle.
+
+**Contamination-resistant by design:** the benchmark runs against a de-leaked `clean/` variant (answer-revealing comments and docs stripped) plus programmatically **mutated, held-out variants**, so a model can't just read the answers — and the public repo can't simply be memorized.
+
+➡️ Everything lives in **[`eval/`](./eval/)** — see **[`eval/README.md`](./eval/README.md)** to run it.
+
+```bash
+# Static vulnerability-detection scoring (precision / recall / F1 + decoy FP-rate)
+python eval/graders/detection_grader.py --truth eval/ground_truth.json \
+  --findings <model_findings.json> --decoys eval/decoys/manifest.json
+
+# Agentic CTF: validate the benchmark, serve a target, then grade an agent's answers
+python eval/harness/run_ctf.py selftest
+python eval/harness/run_ctf.py serve
+python eval/harness/run_ctf.py grade --submissions answers.json
+```
+
+> **Topics / keywords:** AI eval · AI evaluation benchmark · LLM security benchmark · AI agent security evaluation · vulnerability detection benchmark · agentic CTF benchmark · AI red-teaming · secure-code-review benchmark · OWASP / CWE benchmark for LLMs.
 
 ## 🎯 Demo
 
@@ -61,6 +89,9 @@ Detailed course materials can be found in the following files:
 | 6. API Security | API Security Best Practices | [📘 Module 6](course/modules/06_api_security.md) |
 | 7. Secure Coding | Secure Coding Practices | [📘 Module 7](course/modules/07_secure_coding.md) |
 | 8. Static Analysis | Automated Static Analysis with Semgrep | [📘 Module 8](course/modules/08_static_analysis.md) |
+| 9. CSRF & Clickjacking | Cross-Site Request Forgery & UI Redressing | [📘 Module 9](course/modules/09_csrf_and_clickjacking.md) |
+| 10. Stored XSS & File Upload | Output Encoding & Upload Security | [📘 Module 10](course/modules/10_xss_and_file_upload.md) |
+| 11. Auth Bypass & Business Logic | JWT Bypass, Insecure Reset, Race Conditions | [📘 Module 11](course/modules/11_auth_bypass_and_business_logic.md) |
 
 
 Each module contains:
@@ -145,8 +176,17 @@ vulnerable-bank/
 │   │   └── App.js        # Main app component
 │   └── package.json      # Node dependencies
 ├── course/               # Educational content
-│   ├── modules/         # Course modules
-│   └── exercises/       # Practice materials
+│   └── modules/         # Course modules (0–11)
+├── docs/
+│   ├── Vulnerabilities.md   # Full vulnerability inventory
+│   └── exploits/            # Working exploit PoCs
+├── eval/                 # 🤖 AI security evaluation benchmark
+│   ├── ground_truth.json    # 53 labeled vulns (answer key)
+│   ├── flags.json           # 16 agentic CTF challenges
+│   ├── graders/             # detection_grader.py + ctf_oracles.py
+│   ├── harness/             # run_ctf.py (selftest / serve / grade)
+│   ├── variants/            # clean (de-leaked) + mutated (held-out) targets
+│   └── decoys/              # safe-but-suspicious code (false-positive test)
 └── docker-compose.yml   # Docker configuration
 ```
 

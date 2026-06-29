@@ -1,0 +1,8 @@
+# Generated build outputs — regenerate with:
+#   python eval/build_clean.py && python eval/mutate.py
+variants/
+
+# Runtime state
+harness/.ctx.json
+__pycache__/
+*.pyc

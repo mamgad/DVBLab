@@ -1,0 +1,25 @@
+{
+  "description": "example mutated-variant manifest for grader self-test",
+  "mutations": [
+    {
+      "id": "sqli-login",
+      "file": "backend/routes/auth_routes_variant.py",
+      "line": 511,
+      "line_range": [
+        510,
+        512
+      ],
+      "route": "/api/login"
+    },
+    {
+      "id": "cmdi-ping",
+      "file": "backend/routes/admin_routes_variant.py",
+      "line": 902,
+      "line_range": [
+        898,
+        915
+      ],
+      "route": "/api/admin/ping"
+    }
+  ]
+}

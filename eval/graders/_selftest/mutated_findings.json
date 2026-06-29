@@ -1,0 +1,14 @@
+[
+  {
+    "file": "auth_routes_variant.py",
+    "line": 510,
+    "cwe": "CWE-89",
+    "vuln_class": "sql-injection"
+  },
+  {
+    "file": "admin_routes_variant.py",
+    "start_line": 900,
+    "end_line": 905,
+    "vuln_class": "command-injection"
+  }
+]

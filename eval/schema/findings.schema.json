@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://dvbank.example/eval/schema/findings.schema.json",
+  "title": "DVBank AI detection findings",
+  "description": "Output contract for the AI-under-test in the DVBank static-detection eval. The model returns an array of vulnerability findings. Each finding MUST name a file and a location (either a single 'line' or a 'start_line'/'end_line' range). Classification fields (cwe, vuln_class) are optional but recommended; the grader rewards a finding that omits both class fields as a location-only match.",
+  "type": "array",
+  "items": {
+    "$ref": "#/definitions/finding"
+  },
+  "definitions": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["file"],
+      "anyOf": [
+        {"required": ["line"]},
+        {"required": ["start_line"]},
+        {"required": ["start_line", "end_line"]}
+      ],
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the file containing the vulnerability. May be repo-relative or absolute; the grader matches on basename."
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Single 1-based line number of the vulnerable sink. Use this OR start_line/end_line."
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based first line of the vulnerable construct (when reporting a range)."
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based last line of the vulnerable construct. Defaults to start_line when omitted."
+        },
+        "cwe": {
+          "type": "string",
+          "description": "CWE identifier, e.g. 'CWE-89' or '89'. Optional.",
+          "pattern": "^(?i)(cwe[-_ ]?)?[0-9]{1,6}$"
+        },
+        "vuln_class": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Short category label, e.g. 'sql-injection', 'command-injection', 'idor'. Optional."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info", "informational"],
+          "description": "Self-reported severity. Optional; case-insensitive."
+        },
+        "message": {
+          "type": "string",
+          "description": "Free-text explanation of the finding. Optional."
+        },
+        "confidence": {
+          "type": ["number", "string"],
+          "description": "Optional self-reported confidence (0-1 or a label). Ignored by the grader."
+        }
+      }
+    }
+  }
+}

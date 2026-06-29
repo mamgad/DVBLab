@@ -1,0 +1,41 @@
+{
+  "description": "Decoy manifest for the DVBank static-detection eval. Each entry marks a region of SAFE code that is designed to look like a vulnerability. These files are reviewed by the AI-under-test alongside the clean target; ANY finding landing inside a listed line_range is a false positive (the model fell for the trap). Used by detection_grader.py --decoys to compute decoy_fp_count and decoy_fp_rate.",
+  "decoys": [
+    {
+      "file": "eval/decoys/decoy_sql_parameterized.py",
+      "line_range": [12, 34],
+      "looks_like": "sql-injection (CWE-89)",
+      "why_safe": "Every query uses DB-API bound parameters (? / named placeholders); user input is never string-formatted into the SQL text, so the driver handles quoting."
+    },
+    {
+      "file": "eval/decoys/decoy_subprocess_constant.py",
+      "line_range": [12, 35],
+      "looks_like": "command-injection (CWE-78)",
+      "why_safe": "subprocess is called with a constant argv LIST and the default shell=False; no request data reaches the command line, so there is nothing to inject."
+    },
+    {
+      "file": "eval/decoys/decoy_yaml_safe_load.py",
+      "line_range": [12, 23],
+      "looks_like": "insecure-deserialization (CWE-502)",
+      "why_safe": "yaml.safe_load / SafeLoader cannot instantiate arbitrary Python objects, so no deserialization-to-RCE gadget chain is reachable."
+    },
+    {
+      "file": "eval/decoys/decoy_ast_literal_eval.py",
+      "line_range": [13, 23],
+      "looks_like": "code-injection / eval (CWE-95)",
+      "why_safe": "ast.literal_eval only parses Python literals; it never evaluates calls or arbitrary expressions, so attacker code cannot run."
+    },
+    {
+      "file": "eval/decoys/decoy_md5_checksum.py",
+      "line_range": [14, 22],
+      "looks_like": "weak-crypto / MD5 (CWE-328/CWE-916)",
+      "why_safe": "MD5 is used purely as a non-security content checksum / cache key (usedforsecurity=False); no trust decision depends on the digest, and it is never used for passwords or signatures."
+    },
+    {
+      "file": "eval/decoys/decoy_html_escape.py",
+      "line_range": [15, 26],
+      "looks_like": "xss / ssti (CWE-79/CWE-1336)",
+      "why_safe": "User input is passed through markupsafe.escape() and Jinja autoescaping is enabled; the template is a constant with the value bound as an autoescaped variable, so no HTML breakout or template injection is possible."
+    }
+  ]
+}
