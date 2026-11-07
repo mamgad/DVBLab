@@ -8,36 +8,85 @@ from security import sanitize_log_value, client_ip
 
 transaction_bp = Blueprint('transaction', __name__)
 
+def _parse_amount(value):
+    try:
+        amount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ValueError('Invalid amount')
+
+    if not amount.is_finite() or amount <= 0:
+        raise ValueError('Amount must be greater than zero')
+
+    if amount > Decimal('1000000'):
+        raise ValueError('Amount exceeds the allowed limit')
+
+    if amount.as_tuple().exponent < -2:
+        raise ValueError('Amount can have at most two decimal places')
+
+    return amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+def _registrar_operacion(user, action, details):
+    registro = AuditLog(
+        user_id=user.id,
+        action=sanitize_log_value(action, 50),
+        details=sanitize_log_value(details),
+        ip_address=sanitize_log_value(client_ip(), 45)
+    )
+    db.session.add(registro)
+
+
 @transaction_bp.route('/api/transfer', methods=['POST'])
 @token_required
 def transfer(current_user):
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+
+    try:
+        amount = _parse_amount(data.get('amount'))
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+
     to_user_id = data.get('to_user_id')
-    amount = Decimal(str(data.get('amount', 0)))
     description = data.get('description', '')
-    
+
     receiver = User.query.get(to_user_id)
-    
+
     if not receiver:
         return jsonify({'error': 'Receiver not found'}), 404
-    
-    transaction = Transaction(
-        sender_id=current_user.id,
-        receiver_id=receiver.id,
-        amount=amount,
-        description=description,
-        status='completed',
-        completed_at=datetime.utcnow()
-    )
+
+    if receiver.id == current_user.id:
+        return jsonify({'error': 'Cannot transfer to yourself'}), 400
+
     if current_user.balance < amount:
-        return jsonify({'error': 'Insufficient balance'}), 400  
-    
-    current_user.balance -= amount
-    receiver.balance += amount
-    
-    db.session.add(transaction)
-    db.session.commit()
-    
+        return jsonify({'error': 'Insufficient balance'}), 400
+
+    try:
+        current_user.balance -= amount
+        receiver.balance += amount
+
+        transaction = Transaction(
+            sender_id=current_user.id,
+            receiver_id=receiver.id,
+            amount=amount,
+            description=sanitize_log_value(description, 200),
+            status='completed',
+            completed_at=datetime.utcnow()
+        )
+
+        db.session.add(transaction)
+
+        _registrar_operacion(
+            current_user,
+            'transfer',
+            f'Transfer of {amount} to user {receiver.id}'
+        )
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'Transfer could not be completed'}), 500
+
     return jsonify({
         'message': 'Transfer successful',
         'transaction': transaction.to_dict()
@@ -116,33 +165,71 @@ def search_transactions(current_user):
 
 
 
+
 @transaction_bp.route('/api/quickpay', methods=['POST'])
 @cookie_auth
 def quickpay(current_user):
     body = request.get_json(silent=True) or {}
-    to_user_id = request.form.get('to_user_id', body.get('to_user_id'))
-    amount = Decimal(str(request.form.get('amount', body.get('amount', 0))))
-    description = request.form.get('description', body.get('description', 'QuickPay'))
+
+    to_user_id = request.form.get(
+        'to_user_id', body.get('to_user_id')
+    )
+
+    amount_value = request.form.get(
+        'amount', body.get('amount')
+    )
+
+    description = request.form.get(
+        'description', body.get('description', 'QuickPay')
+    )
+
+    try:
+        amount = _parse_amount(amount_value)
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
 
     receiver = User.query.get(to_user_id)
+
     if not receiver:
         return jsonify({'error': 'Receiver not found'}), 404
 
+    if receiver.id == current_user.id:
+        return jsonify({'error': 'Cannot pay yourself'}), 400
 
-    current_user.balance -= amount
-    receiver.balance += amount
-    transaction = Transaction(
-        sender_id=current_user.id,
-        receiver_id=receiver.id,
-        amount=amount,
-        description=description,
-        status='completed',
-        completed_at=datetime.utcnow()
-    )
-    db.session.add(transaction)
-    db.session.commit()
+    if current_user.balance < amount:
+        return jsonify({'error': 'Insufficient balance'}), 400
 
-    return jsonify({'message': 'QuickPay sent', 'transaction': transaction.to_dict()})
+    try:
+        current_user.balance -= amount
+        receiver.balance += amount
+
+        transaction = Transaction(
+            sender_id=current_user.id,
+            receiver_id=receiver.id,
+            amount=amount,
+            description=sanitize_log_value(description, 200),
+            status='completed',
+            completed_at=datetime.utcnow()
+        )
+
+        db.session.add(transaction)
+
+        _registrar_operacion(
+            current_user,
+            'quickpay',
+            f'QuickPay of {amount} to user {receiver.id}'
+        )
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'QuickPay could not be completed'}), 500
+
+    return jsonify({
+        'message': 'QuickPay sent',
+        'transaction': transaction.to_dict()
+    })
 
 
 
@@ -209,27 +296,56 @@ def transaction_receipt(current_user, transaction_id):
 @transaction_bp.route('/api/split-bill', methods=['POST'])
 @token_required
 def split_bill(current_user):
-    data = request.get_json()
-    from_user_id = data.get('from_user_id')
-    to_user_id = data.get('to_user_id', current_user.id)
-    amount = Decimal(str(data.get('amount', 0)))
+    data = request.get_json(silent=True) or {}
 
-    payer = User.query.get(from_user_id)
+    to_user_id = data.get('to_user_id', current_user.id)
+
+    try:
+        amount = _parse_amount(data.get('amount'))
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+
     payee = User.query.get(to_user_id)
-    if not payer or not payee:
+
+    if not payee:
         return jsonify({'error': 'User not found'}), 404
 
-    payer.balance -= amount
-    payee.balance += amount
-    transaction = Transaction(
-        sender_id=payer.id,
-        receiver_id=payee.id,
-        amount=amount,
-        description=data.get('description', 'Bill split'),
-        status='completed',
-        completed_at=datetime.utcnow()
-    )
-    db.session.add(transaction)
-    db.session.commit()
+    if payee.id == current_user.id:
+        return jsonify({'error': 'Cannot split a bill with yourself'}), 400
 
-    return jsonify({'message': 'Bill split', 'transaction': transaction.to_dict()})
+    if current_user.balance < amount:
+        return jsonify({'error': 'Insufficient balance'}), 400
+
+    try:
+        current_user.balance -= amount
+        payee.balance += amount
+
+        transaction = Transaction(
+            sender_id=current_user.id,
+            receiver_id=payee.id,
+            amount=amount,
+            description=sanitize_log_value(
+                data.get('description', 'Bill split'), 200
+            ),
+            status='completed',
+            completed_at=datetime.utcnow()
+        )
+
+        db.session.add(transaction)
+
+        _registrar_operacion(
+            current_user,
+            'split_bill',
+            f'Bill split of {amount} to user {payee.id}'
+        )
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({'error': 'Bill split could not be completed'}), 500
+
+    return jsonify({
+        'message': 'Bill split',
+        'transaction': transaction.to_dict()
+    })
