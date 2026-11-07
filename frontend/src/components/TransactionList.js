@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 
@@ -8,15 +9,17 @@ const TransactionList = ({ userId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
+  // Cargar las transacciones del usuario autenticado.
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/transactions?user_id=${userId}`, {
+
+      const response = await fetch(`${API_BASE_URL}/api/transactions`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setTransactions(data);
@@ -31,16 +34,20 @@ const TransactionList = ({ userId }) => {
     }
   };
 
+  // Buscar transacciones mediante el término ingresado.
   const searchTransactions = async () => {
     try {
       setIsSearching(true);
-      
-      const response = await fetch(`${API_BASE_URL}/api/transactions/search?description=${encodeURIComponent(searchTerm)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions/search?description=${encodeURIComponent(searchTerm)}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
         }
-      });
-      
+      );
+
       if (response.ok) {
         const data = await response.json();
         setTransactions(data);
@@ -55,12 +62,45 @@ const TransactionList = ({ userId }) => {
     }
   };
 
+  // Abrir el recibo enviando el token de autenticación.
+  const viewReceipt = async (transactionId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions/${transactionId}/receipt`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        setError('Failed to load receipt');
+        return;
+      }
+
+      const receipt = await response.blob();
+      const receiptUrl = URL.createObjectURL(receipt);
+
+      window.open(receiptUrl, '_blank');
+
+      // Liberar la URL temporal después de un tiempo.
+      setTimeout(() => {
+        URL.revokeObjectURL(receiptUrl);
+      }, 60000);
+
+    } catch (error) {
+      setError('Failed to load receipt');
+    }
+  };
+
   useEffect(() => {
     fetchTransactions();
   }, [userId]);
 
   const handleSearch = (e) => {
     e.preventDefault();
+
     if (searchTerm.trim()) {
       searchTransactions();
     } else {
@@ -80,8 +120,7 @@ const TransactionList = ({ userId }) => {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Transactions</h2>
-      
-      {/* Search Form */}
+
       <div className="mb-6 bg-white p-4 rounded-lg shadow-md">
         <form onSubmit={handleSearch} className="flex items-center space-x-4">
           <div className="flex-grow">
@@ -93,6 +132,7 @@ const TransactionList = ({ userId }) => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
           <button
             type="submit"
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -100,6 +140,7 @@ const TransactionList = ({ userId }) => {
           >
             {isSearching ? 'Searching...' : 'Search'}
           </button>
+
           {searchTerm && (
             <button
               type="button"
@@ -128,6 +169,7 @@ const TransactionList = ({ userId }) => {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt</th>
             </tr>
           </thead>
+
           <tbody className="bg-white divide-y divide-gray-200">
             {transactions.length === 0 ? (
               <tr>
@@ -141,38 +183,39 @@ const TransactionList = ({ userId }) => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     {new Date(transaction.created_at).toLocaleDateString()}
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     {transaction.sender_id === parseInt(userId) ? 'Sent' : 'Received'}
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={transaction.sender_id === parseInt(userId) ? 'text-red-600' : 'text-green-600'}>
                       ${transaction.amount.toFixed(2)}
                     </span>
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded-full text-xs ${
-                      transaction.status === 'completed' 
-                        ? 'bg-green-100 text-green-800' 
+                      transaction.status === 'completed'
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-yellow-100 text-yellow-800'
                     }`}>
                       {transaction.status}
                     </span>
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap text-gray-500">
                     {transaction.description || '-'}
                   </td>
+
                   <td className="px-6 py-4 whitespace-nowrap">
-                    
-
-
-                    <a
-                      href={`${API_BASE_URL}/api/transactions/${transaction.id}/receipt`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => viewReceipt(transaction.id)}
                       className="text-blue-600 hover:underline"
                     >
                       View
-                    </a>
+                    </button>
                   </td>
                 </tr>
               ))
@@ -184,4 +227,4 @@ const TransactionList = ({ userId }) => {
   );
 };
 
-export default TransactionList; 
+export default TransactionList;

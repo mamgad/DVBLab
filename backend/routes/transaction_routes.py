@@ -153,36 +153,49 @@ def quickpay(current_user):
 
 
 
-
-@transaction_bp.route('/api/transactions/<int:transaction_id>/receipt', methods=['GET'])
-def transaction_receipt(transaction_id):
+@transaction_bp.route('/api/transactions/<int:transaction_id>/receipt',
+                      methods=['GET'])
+@token_required
+def transaction_receipt(current_user, transaction_id):
     transaction = Transaction.query.get(transaction_id)
     if not transaction:
-        return 'Receipt not found', 404
+        return jsonify({'error': 'Receipt not found'}), 404
+
+    # Solo el emisor o destinatario pueden consultar el recibo.
+    if current_user.id not in (transaction.sender_id, transaction.receiver_id):
+        return jsonify({'error': 'Unauthorized'}), 403
 
     sender = User.query.get(transaction.sender_id)
     receiver = User.query.get(transaction.receiver_id)
-    sender_name = sender.username if sender else 'unknown'
-    receiver_name = receiver.username if receiver else 'unknown'
 
+    # Escapamos los datos para evitar XSS almacenado.
+    sender_name = escape(sender.username if sender else 'unknown')
+    receiver_name = escape(receiver.username if receiver else 'unknown')
+    status = escape(transaction.status)
+    memo = escape(transaction.description or '')
 
     html = f"""<!doctype html>
 <html>
-  <head><title>DVBank Receipt #{transaction.id}</title></head>
+  <head><meta charset="utf-8"><title>DVBank Receipt #{transaction.id}</title></head>
   <body style="font-family: sans-serif; max-width: 600px; margin: 40px auto;">
     <h1>DVBank Payment Receipt</h1>
     <p><b>Receipt #:</b> {transaction.id}</p>
     <p><b>From:</b> {sender_name}</p>
     <p><b>To:</b> {receiver_name}</p>
     <p><b>Amount:</b> ${float(transaction.amount):.2f}</p>
-    <p><b>Status:</b> {transaction.status}</p>
-    <p><b>Memo:</b> {transaction.description or ''}</p>
+    <p><b>Status:</b> {status}</p>
+    <p><b>Memo:</b> {memo}</p>
     <hr/>
     <small>Generated {datetime.utcnow().isoformat()}</small>
   </body>
 </html>"""
-    return html
 
+    resp = Response(html, mimetype='text/html')
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Content-Security-Policy'] = (
+        "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'"
+    )
+    return resp
 
 
 
