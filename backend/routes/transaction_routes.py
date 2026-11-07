@@ -1,8 +1,10 @@
-from flask import Blueprint, request, jsonify
-from models import db, User, Transaction
+from flask import Blueprint, request, jsonify, Response
+from models import db, User, Transaction, AuditLog
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
+from markupsafe import escape
 from auth import token_required, cookie_auth
+from security import sanitize_log_value, client_ip
 
 transaction_bp = Blueprint('transaction', __name__)
 
@@ -44,21 +46,20 @@ def transfer(current_user):
 @transaction_bp.route('/api/transactions', methods=['GET'])
 @token_required
 def get_transactions(current_user):
-    user_id = request.args.get('user_id', current_user.id)
-    
-    query = f'SELECT * FROM "Transaction" WHERE sender_id = {user_id} OR receiver_id = {user_id} ORDER BY created_at DESC'
-    result = db.session.execute(query)
-    transactions = result.fetchall()
-    
+    transactions = Transaction.query.filter(
+        (Transaction.sender_id == current_user.id) |
+        (Transaction.receiver_id == current_user.id)
+    ).order_by(Transaction.created_at.desc()).all()
+
     return jsonify([{
-        'id': t[0],
-        'sender_id': t[1],
-        'receiver_id': t[2], 
-        'amount': float(t[3]),
-        'description': t[4],
-        'status': t[5],
-        'created_at': t[6],
-        'completed_at': t[7]
+        'id': t.id,
+        'sender_id': t.sender_id,
+        'receiver_id': t.receiver_id,
+        'amount': float(t.amount),
+        'description': t.description,
+        'status': t.status,
+        'created_at': t.created_at,
+        'completed_at': t.completed_at
     } for t in transactions])
 
 @transaction_bp.route('/api/transactions/<int:transaction_id>', methods=['GET'])
@@ -87,33 +88,29 @@ def get_transaction(current_user, transaction_id):
 @token_required
 def search_transactions(current_user):
     search_term = request.args.get('description', '')
-    
 
+    transactions = Transaction.query.filter(
+        (
+            (Transaction.sender_id == current_user.id) |
+            (Transaction.receiver_id == current_user.id)
+        ) &
+        (Transaction.description.ilike(f'%{search_term}%'))
+    ).order_by(Transaction.created_at.desc()).all()
 
-    query = f"SELECT * FROM \"transaction\" WHERE (sender_id = {current_user.id} OR receiver_id = {current_user.id}) AND description LIKE '%{search_term}%'"
-    
-    result = db.session.execute(query)
-    transactions = result.fetchall()
-    
     transaction_list = []
     for t in transactions:
         transaction_list.append({
-            'id': t[0],
-            'sender_id': t[1],
-            'receiver_id': t[2], 
-            'amount': float(t[3]),
-            'description': t[4],
-            'status': t[5],
-            'created_at': t[6],
-            'completed_at': t[7]
+            'id': t.id,
+            'sender_id': t.sender_id,
+            'receiver_id': t.receiver_id,
+            'amount': float(t.amount),
+            'description': t.description,
+            'status': t.status,
+            'created_at': t.created_at,
+            'completed_at': t.completed_at
         })
-    
+
     return jsonify(transaction_list)
-
-
-
-
-
 
 
 
