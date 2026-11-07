@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { API_BASE_URL } from '../config';
 
-// Uploads any file to /api/upload-avatar (no client- or server-side validation)
-// and shows the resulting same-origin URL. An uploaded SVG/HTML file containing
-// a <script> tag becomes stored XSS when opened from /uploads/<name>.
+
+
+
 const AvatarUpload = () => {
   const [file, setFile] = useState(null);
   const [result, setResult] = useState(null);

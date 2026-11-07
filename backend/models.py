@@ -3,6 +3,7 @@ import hashlib
 import json
 from datetime import datetime
 from decimal import Decimal
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
@@ -16,18 +17,29 @@ class User(db.Model):
     role = db.Column(db.String(20), default='user')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
-    # Password-reset token (intentionally predictable - see auth_routes.forgot_password)
-    reset_token = db.Column(db.String(64), nullable=True)
+
+    # Se guarda SOLO el hash del token de recuperacion, nunca el token en claro.
+    reset_token = db.Column(db.String(128), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
     avatar_url = db.Column(db.String(255), nullable=True)
 
     sent_transactions = db.relationship('Transaction', foreign_keys='Transaction.sender_id', backref='sender', lazy=True)
     received_transactions = db.relationship('Transaction', foreign_keys='Transaction.receiver_id', backref='receiver', lazy=True)
 
     def set_password(self, password):
-        self.password_hash = hashlib.md5(password.encode()).hexdigest()
+        # Hash con sal via PBKDF2-SHA256 (Werkzeug). Reemplaza MD5 sin sal.
+        self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        return self.password_hash == hashlib.md5(password.encode()).hexdigest()
+        # Comparacion en tiempo constante. Migra de forma transparente los
+        # hashes antiguos en formato MD5 (32 hex) al verificar por primera vez.
+        stored = self.password_hash or ''
+        if len(stored) == 32 and all(c in '0123456789abcdef' for c in stored.lower()):
+            if hashlib.md5(password.encode()).hexdigest() == stored:
+                self.set_password(password)  # rehash al nuevo formato
+                return True
+            return False
+        return check_password_hash(stored, password)
 
     def get_profile(self):
         return json.loads(self.profile) if self.profile else {}

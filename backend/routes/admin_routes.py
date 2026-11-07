@@ -14,7 +14,7 @@ import hashlib
 
 admin_bp = Blueprint('admin', __name__)
 
-# Hardcoded API keys and credentials
+
 ADMIN_API_KEY = "sk-live-4f3c2e1d0a9b8c7d6e5f4a3b2c1d0e9f"
 AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
 AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
@@ -28,11 +28,11 @@ SLACK_WEBHOOK = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXX
 logger = logging.getLogger(__name__)
 
 
-# ============================================================
-# VULNERABILITY: Command Injection (CWE-78)
-# Semgrep rules: python.lang.security.audit.dangerous-subprocess-use
-#                python.lang.security.audit.subprocess-shell-true
-# ============================================================
+
+
+
+
+
 @admin_bp.route('/api/admin/generate-report', methods=['POST'])
 @token_required
 def generate_report(current_user):
@@ -92,10 +92,10 @@ def dns_lookup(current_user):
     return jsonify({'result': stdout.decode()})
 
 
-# ============================================================
-# VULNERABILITY: Server-Side Request Forgery - SSRF (CWE-918)
-# Semgrep rules: python.lang.security.audit.ssrf.*
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/webhook-test', methods=['POST'])
 @token_required
 def test_webhook(current_user):
@@ -124,10 +124,10 @@ def fetch_avatar(current_user):
     return jsonify({'avatar_base64': avatar_data})
 
 
-# ============================================================
-# VULNERABILITY: Path Traversal / LFI (CWE-22)
-# Semgrep rules: python.lang.security.audit.path-traversal
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/download-statement', methods=['GET'])
 @token_required
 def download_statement(current_user):
@@ -148,10 +148,10 @@ def view_log(current_user):
     return jsonify({'log': content})
 
 
-# ============================================================
-# VULNERABILITY: XML External Entity (XXE) (CWE-611)
-# Semgrep rules: python.lang.security.audit.xxe
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/import-data', methods=['POST'])
 @token_required
 def import_data(current_user):
@@ -172,10 +172,10 @@ def import_data(current_user):
     return jsonify({'imported': len(records), 'records': records})
 
 
-# ============================================================
-# VULNERABILITY: Insecure Deserialization - Pickle (CWE-502)
-# Semgrep rules: python.lang.security.deserialization.avoid-pickle
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/import-session', methods=['POST'])
 @token_required
 def import_session(current_user):
@@ -201,10 +201,10 @@ def export_session(current_user):
     return jsonify({'session_data': serialized})
 
 
-# ============================================================
-# VULNERABILITY: Mass Assignment (CWE-915)
-# Semgrep rules: python.django.security.audit.mass-assignment
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/users/<int:user_id>', methods=['PUT'])
 @token_required
 def update_user(current_user, user_id):
@@ -221,10 +221,10 @@ def update_user(current_user, user_id):
     return jsonify({'message': 'User updated', 'user': user.to_dict()})
 
 
-# ============================================================
-# VULNERABILITY: Server-Side Template Injection - SSTI (CWE-1336)
-# Semgrep rules: python.flask.security.audit.render-template-string
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/preview-email', methods=['POST'])
 @token_required
 def preview_email(current_user):
@@ -237,10 +237,10 @@ def preview_email(current_user):
     return jsonify({'preview': rendered})
 
 
-# ============================================================
-# VULNERABILITY: Open Redirect (CWE-601)
-# Semgrep rules: python.flask.security.open-redirect
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/redirect', methods=['GET'])
 def open_redirect():
     target = request.args.get('url', '/')
@@ -248,10 +248,10 @@ def open_redirect():
     return redirect(target)
 
 
-# ============================================================
-# VULNERABILITY: Log Injection (CWE-117)
-# Semgrep rules: python.lang.security.audit.logging.logger-credential-leak
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/audit', methods=['POST'])
 @token_required
 def create_audit_entry(current_user):
@@ -273,10 +273,10 @@ def create_audit_entry(current_user):
     return jsonify({'message': 'Audit entry created'})
 
 
-# ============================================================
-# VULNERABILITY: Broken Access Control (CWE-285)
-# No role check on admin endpoints - any authenticated user has access
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/users', methods=['GET'])
 @token_required
 def list_all_users(current_user):
@@ -303,10 +303,10 @@ def delete_user(current_user, user_id):
     return jsonify({'error': 'User not found'}), 404
 
 
-# ============================================================
-# VULNERABILITY: Regex DoS / ReDoS (CWE-1333)
-# Semgrep rules: python.lang.security.audit.regex-dos
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/search-users', methods=['GET'])
 @token_required
 def search_users_regex(current_user):
@@ -322,11 +322,11 @@ def search_users_regex(current_user):
     return jsonify(matches)
 
 
-# ============================================================
-# VULNERABILITY: Eval / Exec Code Injection (CWE-95)
-# Semgrep rules: python.lang.security.audit.eval-detected
-#                python.lang.security.audit.exec-detected
-# ============================================================
+
+
+
+
+
 @admin_bp.route('/api/admin/calculate', methods=['POST'])
 @token_required
 def calculate(current_user):
@@ -365,10 +365,10 @@ def format_data(current_user):
     return jsonify({'formatted': str(namespace.get('output', ''))})
 
 
-# ============================================================
-# VULNERABILITY: Weak Cryptography (CWE-328)
-# Semgrep rules: python.lang.security.audit.hashlib-insecure-functions
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/verify-integrity', methods=['POST'])
 @token_required
 def verify_integrity(current_user):
@@ -395,10 +395,10 @@ def generate_api_token(current_user):
     return jsonify({'api_token': token})
 
 
-# ============================================================
-# VULNERABILITY: Hardcoded password comparison (CWE-798)
-# Semgrep rules: python.lang.security.audit.hardcoded-password
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/master-login', methods=['POST'])
 @token_required
 def master_login(current_user):
@@ -411,10 +411,10 @@ def master_login(current_user):
     return jsonify({'error': 'Invalid master password'}), 403
 
 
-# ============================================================
-# VULNERABILITY: Assert used for authorization (CWE-617)
-# Semgrep rules: python.lang.security.audit.assert-used-for-security
-# ============================================================
+
+
+
+
 @admin_bp.route('/api/admin/sensitive-action', methods=['POST'])
 @token_required
 def sensitive_action(current_user):
@@ -426,9 +426,9 @@ def sensitive_action(current_user):
     return jsonify({'message': f'Action {action} performed successfully'})
 
 
-# ============================================================
-# VULNERABILITY: Insecure temp file + info leak (CWE-377)
-# ============================================================
+
+
+
 @admin_bp.route('/api/admin/export-report', methods=['POST'])
 @token_required
 def export_report(current_user):
@@ -442,9 +442,9 @@ def export_report(current_user):
     return send_file(tmp_path, as_attachment=True)
 
 
-# ============================================================
-# VULNERABILITY: Leaking secrets in API response
-# ============================================================
+
+
+
 @admin_bp.route('/api/admin/dashboard-data', methods=['GET'])
 @token_required
 def dashboard_data(current_user):

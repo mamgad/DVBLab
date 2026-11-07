@@ -6,86 +6,121 @@ from routes.transaction_routes import transaction_bp
 from routes.admin_routes import admin_bp
 from routes.upload_routes import upload_bp
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 from decimal import Decimal
 from datetime import datetime, timedelta
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 import sqlite3
 
+from config import Config
+from extensions import limiter
+
 app = Flask(__name__)
 
-# Configuration
-app.config['SECRET_KEY'] = 'supersecret'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vulnerable_bank.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Configuracion leida del entorno; el secreto ya NO esta en el codigo.
+app.config.from_object(Config)
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'connect_args': {
-        'timeout': 10,  # Set SQLite timeout to 10 seconds
-        'check_same_thread': False,  # Allow access from multiple threads
-        'isolation_level': None,  # Use autocommit mode
+        'timeout': 10,
+        'check_same_thread': False,
+        'isolation_level': None,
     },
-    'poolclass': None,  # Disable connection pooling for SQLite
-    'pool_pre_ping': True,  # Check connection validity before using from pool
-    'pool_recycle': 3600  # Recycle connections after 1 hour
+    'poolclass': None,
+    'pool_pre_ping': True,
+    'pool_recycle': 3600
 }
 
-# Configure SQLite for better concurrency
+# CORS restringido a la lista blanca de origenes (no se refleja cualquier Origin).
+CORS(
+    app,
+    origins=app.config['CORS_ORIGINS'],
+    supports_credentials=True,
+    allow_headers=['Content-Type', 'Authorization'],
+    methods=['GET', 'PUT', 'POST', 'DELETE', 'OPTIONS'],
+)
+
+# Rate limiting global (Modulo 1: resistencia del login / fuerza bruta).
+limiter.init_app(app)
+
+# ---------------------------------------------------------------------------
+# Logging estructurado de auditoria hacia audit.log con rotacion (Modulo 4).
+# ---------------------------------------------------------------------------
+_log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(_log_dir, exist_ok=True)
+_audit_handler = RotatingFileHandler(
+    os.path.join(_log_dir, 'audit.log'), maxBytes=5 * 1024 * 1024, backupCount=5
+)
+_audit_handler.setFormatter(logging.Formatter(
+    '{"ts":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}'
+))
+audit_logger = logging.getLogger('dvbank.audit')
+audit_logger.setLevel(logging.INFO)
+audit_logger.addHandler(_audit_handler)
+audit_logger.propagate = False
+
+
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
     if isinstance(dbapi_connection, sqlite3.Connection):
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL;")  # Write-Ahead Logging for better concurrency
-        cursor.execute("PRAGMA synchronous=NORMAL;")  # Reduce synchronous for better performance
-        cursor.execute("PRAGMA busy_timeout=10000;")  # Set busy timeout to 10 seconds (10000 ms)
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        cursor.execute("PRAGMA busy_timeout=10000;")
         cursor.close()
 
-# SECURITY VULNERABILITIES FOR EDUCATIONAL PURPOSES:
-# 1. Intentionally vulnerable CORS configuration - DO NOT USE IN PRODUCTION
-# 2. SQL Injection in transaction search - vulnerable endpoint at /api/transactions/search
-# 3. Weak password hashing (MD5) in User model
-# 4. Sensitive data exposure in user profiles
 
-# Intentionally vulnerable CORS configuration - DO NOT USE IN PRODUCTION
+
+
+
+
+
+
 @app.after_request
-def after_request(response):
-    # Reflect any origin in CORS headers - INSECURE!
-    origin = request.headers.get('Origin')
-    if origin:
-        response.headers.add('Access-Control-Allow-Origin', origin)
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
+def set_security_headers(response):
+    # Cabeceras de seguridad para el navegador (defensa en profundidad anti-XSS,
+    # clickjacking y sniffing de tipos). El CORS lo gestiona flask_cors arriba.
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; frame-ancestors 'none'; object-src 'none'; "
+        "base-uri 'self'"
+    )
     return response
 
-# Initialize extensions
+
 db.init_app(app)
 
-# Register blueprints
+
 app.register_blueprint(auth_bp)
 app.register_blueprint(transaction_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(upload_bp)
 
-# Error handlers
+
 @app.errorhandler(404)
 def not_found_error(error):
-    return jsonify({'error': str(error)}), 404
+    return jsonify({'error': 'Recurso no encontrado'}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
     db.session.rollback()
-    return jsonify({'error': str(error)}), 500
+    # No se filtra el detalle interno al cliente; se registra para diagnostico.
+    audit_logger.error(f"internal_error path={request.path}")
+    return jsonify({'error': 'Error interno del servidor'}), 500
 
-# Create database tables
+
 def init_db():
     with app.app_context():
         db.create_all()
         
-        # Create test users if they don't exist
+
         test_users = [
             {
                 'username': 'alice',
-                'password': 'password123',
+                'password': 'Dvbank#Demo2026',
                 'balance': 5000.00,
                 'email': 'alice@bank.com',
                 'profile': {
@@ -94,12 +129,12 @@ def init_db():
                     'address': '123 Secure St, Cryptoville, CV 94024',
                     'email': 'alice@bank.com',
                     'dob': '1990-03-15',
-                    'ssn': '123-45-6789'  # Intentionally exposed sensitive data
+                    'ssn': '123-45-6789'
                 }
             },
             {
                 'username': 'bob',
-                'password': 'password123',
+                'password': 'Dvbank#Demo2026',
                 'balance': 3000.00,
                 'email': 'bob@bank.com',
                 'profile': {
@@ -108,12 +143,12 @@ def init_db():
                     'address': '456 Blockchain Ave, Cryptoville, CV 94024',
                     'email': 'bob@bank.com',
                     'dob': '1985-07-22',
-                    'ssn': '987-65-4321'  # Intentionally exposed sensitive data
+                    'ssn': '987-65-4321'
                 }
             },
             {
                 'username': 'charlie',
-                'password': 'password123',
+                'password': 'Dvbank#Demo2026',
                 'balance': 2500.00,
                 'email': 'charlie@bank.com',
                 'profile': {
@@ -122,12 +157,12 @@ def init_db():
                     'address': '789 Privacy Lane, Cryptoville, CV 94024',
                     'email': 'charlie@bank.com',
                     'dob': '1988-11-30',
-                    'ssn': '456-78-9012'  # Intentionally exposed sensitive data
+                    'ssn': '456-78-9012'
                 }
             },
             {
                 'username': 'dave',
-                'password': 'password123',
+                'password': 'Dvbank#Demo2026',
                 'balance': 4000.00,
                 'email': 'dave@bank.com',
                 'profile': {
@@ -141,7 +176,7 @@ def init_db():
             },
             {
                 'username': 'eve',
-                'password': 'password123',
+                'password': 'Dvbank#Demo2026',
                 'balance': 1500.00,
                 'email': 'eve@bank.com',
                 'profile': {
@@ -155,7 +190,7 @@ def init_db():
             },
             {
                 'username': 'frank',
-                'password': 'password123',
+                'password': 'Dvbank#Demo2026',
                 'balance': 3500.00,
                 'email': 'frank@bank.com',
                 'profile': {
@@ -185,7 +220,7 @@ def init_db():
             else:
                 users[user_data['username']] = User.query.filter_by(username=user_data['username']).first()
 
-        # Create some sample transactions
+
         sample_transactions = [
             ('alice', 'bob', 100.00, 'Rent payment'),
             ('bob', 'charlie', 50.00, 'Dinner split'),
@@ -204,11 +239,11 @@ def init_db():
             ('charlie', 'alice', 145.00, 'Festival tickets')
         ]
 
-        # Only add transactions if none exist
+
         if Transaction.query.count() == 0:
             base_time = datetime.utcnow() - timedelta(days=30)
             for i, (sender, receiver, amount, description) in enumerate(sample_transactions):
-                # Create transaction with timestamps spread over the last 30 days
+
                 transaction_time = base_time + timedelta(days=i*2)
                 transaction = Transaction(
                     sender_id=users[sender].id,
@@ -221,7 +256,7 @@ def init_db():
                 )
                 db.session.add(transaction)
                 
-                # Update balances
+
                 users[sender].balance -= Decimal(str(amount))
                 users[receiver].balance += Decimal(str(amount))
 
@@ -229,4 +264,6 @@ def init_db():
 
 if __name__ == '__main__':
     init_db()
-    app.run(host='0.0.0.0', debug=True, port=5000) 
+    debug = os.environ.get('FLASK_DEBUG', '0') == '1'
+    host = os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
+    app.run(host=host, debug=debug, port=5000)

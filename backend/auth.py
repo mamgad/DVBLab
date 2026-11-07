@@ -1,32 +1,23 @@
 from functools import wraps
-from flask import request, jsonify
+from flask import request, jsonify, current_app
 import jwt
 from models import User
 
 
 def _decode_token(token):
-    """
-    Decode a JWT and return its payload.
+    """Decodifica y VERIFICA un JWT.
 
-    VULNERABILITY: JWT 'none' algorithm / signature-not-verified bypass (CWE-347)
-    We first try to verify the token with the (weak, hardcoded) HS256 secret. If
-    that fails for ANY reason we fall back to decoding the token WITHOUT verifying
-    the signature, which means an attacker can forge a token with
-    {"alg": "none"} (or any payload) and impersonate any user.
-
-    Semgrep rules: python.jwt.security.jwt-none-alg
-                   python.jwt.security.unverified-jwt-decode
+    Verifica siempre la firma y la expiracion con una lista fija de algoritmos
+    (HS256). Rechaza 'alg: none' y cualquier token cuya firma no sea valida.
+    Usa el secreto de configuracion de la app (cargado desde el entorno), el
+    mismo que se usa al emitir el token. Lanza excepcion si el token no es
+    valido; el llamador responde 401.
     """
-    try:
-        # "Normal" path - verify signature with the hardcoded secret
-        return jwt.decode(token, 'secret', algorithms=['HS256'])
-    except Exception:
-        # INSECURE FALLBACK: accept unsigned / 'none' algorithm tokens
-        return jwt.decode(
-            token,
-            options={'verify_signature': False, 'verify_exp': False},
-            algorithms=['HS256', 'none'],
-        )
+    return jwt.decode(
+        token,
+        current_app.config['SECRET_KEY'],
+        algorithms=['HS256'],
+    )
 
 
 def token_required(f):
@@ -34,13 +25,9 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = None
 
-        # Check if token is in headers
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            try:
-                token = auth_header.split(" ")[1]  # Bearer <token>
-            except IndexError:
-                token = auth_header
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header[len('Bearer '):].strip()
 
         if not token:
             return jsonify({'error': 'Token is missing'}), 401
@@ -58,17 +45,10 @@ def token_required(f):
 
 
 def cookie_auth(f):
-    """
-    Authenticate from the 'session_token' cookie instead of the Authorization
-    header.
+    """Autenticacion por cookie de sesion HttpOnly.
 
-    VULNERABILITY: Cross-Site Request Forgery (CWE-352)
-    Endpoints protected by this decorator are authenticated solely by an
-    ambient cookie - there is no CSRF token, no Origin/Referer check and the
-    cookie is set without SameSite/HttpOnly (see auth_routes.login). A malicious
-    cross-site page can therefore drive these endpoints in the victim's session.
-
-    Semgrep rules: python.flask.security.audit.no-csrf-protection
+    Verifica el JWT de la cookie con firma y expiracion. Pensada para flujos
+    basados en cookies; el CSRF se mitiga con SameSite=Strict en la cookie.
     """
     @wraps(f)
     def decorated(*args, **kwargs):

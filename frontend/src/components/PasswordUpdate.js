@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { API_BASE_URL } from '../config';
 
 const PasswordUpdate = () => {
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
 
@@ -9,8 +10,8 @@ const PasswordUpdate = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const userId = JSON.parse(atob(token.split('.')[1])).user_id;
-      
+
+      // El servidor identifica al usuario por su sesion; ya NO se envia user_id.
       const response = await fetch(`${API_BASE_URL}/api/update-password`, {
         method: 'POST',
         headers: {
@@ -18,14 +19,17 @@ const PasswordUpdate = () => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          user_id: userId,
+          current_password: currentPassword,
           new_password: newPassword
         })
       });
 
       const data = await response.json();
       setMessage(data.message || data.error);
-      if (response.ok) setNewPassword('');
+      if (response.ok) {
+        setNewPassword('');
+        setCurrentPassword('');
+      }
     } catch (error) {
       setMessage('Failed to update password');
     }
@@ -35,6 +39,14 @@ const PasswordUpdate = () => {
     <div className="bg-white p-6 rounded shadow">
       <h2 className="text-xl mb-4">Update Password</h2>
       <form onSubmit={handleSubmit}>
+        <input
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          placeholder="Current password"
+          className="border p-2 mr-2"
+          required
+        />
         <input
           type="password"
           value={newPassword}
@@ -52,4 +64,4 @@ const PasswordUpdate = () => {
   );
 };
 
-export default PasswordUpdate; 
+export default PasswordUpdate;

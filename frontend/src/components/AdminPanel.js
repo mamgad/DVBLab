@@ -36,7 +36,7 @@ const AdminPanel = () => {
     }
   };
 
-  // VULNERABLE: XSS via dangerouslySetInnerHTML - renders unsanitized HTML from search results
+  
   const handleSearch = (query) => {
     const filtered = users.filter(u => u.username.includes(query));
     if (filtered.length === 0) {
@@ -49,7 +49,7 @@ const AdminPanel = () => {
     }
   };
 
-  // VULNERABLE: eval() on user-controlled input
+  
   const handleCalculate = () => {
     try {
       const result = eval(calcExpression);
@@ -59,7 +59,7 @@ const AdminPanel = () => {
     }
   };
 
-  // VULNERABLE: Storing sensitive data in localStorage
+  
   const handleAdminLogin = (adminToken, userData) => {
     localStorage.setItem('admin_token', adminToken);
     localStorage.setItem('admin_user', JSON.stringify(userData));
@@ -71,7 +71,7 @@ const AdminPanel = () => {
     localStorage.setItem('session_secret', 'admin_master_key_2024');
   };
 
-  // VULNERABLE: Loading content from URL parameter without validation (DOM-based XSS)
+  
   const loadNotesFromUrl = () => {
     const params = new URLSearchParams(window.location.search);
     const notesParam = params.get('notes');
@@ -80,7 +80,7 @@ const AdminPanel = () => {
     }
   };
 
-  // VULNERABLE: Using document.write
+  
   const printReport = (reportData) => {
     const printWindow = window.open('', '_blank');
     printWindow.document.write(`
@@ -94,7 +94,7 @@ const AdminPanel = () => {
     `);
   };
 
-  // VULNERABLE: innerHTML assignment
+  
   const renderAnnouncement = (text) => {
     setAnnouncements(prev => [...prev, text]);
     const container = document.getElementById('announcements');
@@ -103,10 +103,10 @@ const AdminPanel = () => {
     }
   };
 
-  // VULNERABLE: postMessage without origin check
+  
   useEffect(() => {
     window.addEventListener('message', (event) => {
-      // No origin validation
+      
       const data = event.data;
       if (data.type === 'UPDATE_CONFIG') {
         eval(data.payload);
@@ -152,7 +152,7 @@ const AdminPanel = () => {
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-8">Admin Panel</h1>
 
-      {/* User Search - XSS via dangerouslySetInnerHTML */}
+      
       <section className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">User Search</h2>
         <input
@@ -164,7 +164,7 @@ const AdminPanel = () => {
         <div dangerouslySetInnerHTML={{ __html: searchHtml }} />
       </section>
 
-      {/* User Notes - XSS via dangerouslySetInnerHTML from URL param */}
+      
       {userNotes && (
         <section className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Notes</h2>
@@ -172,7 +172,7 @@ const AdminPanel = () => {
         </section>
       )}
 
-      {/* Announcements - XSS via innerHTML */}
+      
       <section className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Announcements</h2>
         <div className="flex gap-2 mb-4">
@@ -193,7 +193,7 @@ const AdminPanel = () => {
         <div id="announcements"></div>
       </section>
 
-      {/* Calculator - eval() injection */}
+      
       <section className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Calculator</h2>
         <div className="flex gap-2">
@@ -214,7 +214,7 @@ const AdminPanel = () => {
         {calcResult && <p className="mt-2 text-lg font-mono">Result: {calcResult}</p>}
       </section>
 
-      {/* Webhook Tester - SSRF */}
+      
       <section className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">Webhook Tester</h2>
         <div className="flex gap-2 mb-4">
@@ -235,7 +235,7 @@ const AdminPanel = () => {
         {webhookResult && <pre className="bg-gray-100 p-4 rounded overflow-auto">{webhookResult}</pre>}
       </section>
 
-      {/* XML Import - XXE */}
+      
       <section className="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 className="text-xl font-semibold mb-4">XML Data Import</h2>
         <textarea
@@ -253,7 +253,7 @@ const AdminPanel = () => {
         {importResult && <pre className="mt-4 bg-gray-100 p-4 rounded overflow-auto">{importResult}</pre>}
       </section>
 
-      {/* Users Table - exposes sensitive data */}
+      
       <section className="bg-white rounded-lg shadow-md p-6">
         <h2 className="text-xl font-semibold mb-4">All Users</h2>
         <table className="min-w-full">

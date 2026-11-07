@@ -49,3 +49,6 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db 
+# Seguridad: logs de auditoria y WAL de SQLite
+backend/logs/
+*.db-*
