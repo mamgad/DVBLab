@@ -7,9 +7,10 @@ from routes.admin_routes import admin_bp
 from routes.upload_routes import upload_bp
 import os
 import logging
+import json
 from logging.handlers import RotatingFileHandler
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 import sqlite3
@@ -52,9 +53,26 @@ os.makedirs(_log_dir, exist_ok=True)
 _audit_handler = RotatingFileHandler(
     os.path.join(_log_dir, 'audit.log'), maxBytes=5 * 1024 * 1024, backupCount=5
 )
-_audit_handler.setFormatter(logging.Formatter(
-    '{"ts":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","msg":"%(message)s"}'
-))
+
+
+class JsonAuditFormatter(logging.Formatter):
+    """Modulo 4 - N3 [A09]: cada evento es una linea JSON valida.
+
+    json.dumps escapa comillas, barras y saltos de linea, asi que ningun valor
+    puede cerrar el campo msg ni crear una linea nueva en audit.log."""
+
+    def format(self, record):
+        return json.dumps({
+            'ts': datetime.now(timezone.utc).isoformat(timespec='milliseconds'),
+            'level': record.levelname,
+            'logger': record.name,
+            'msg': record.getMessage(),
+        }, ensure_ascii=False)
+
+
+_audit_handler.setFormatter(JsonAuditFormatter())
+
+
 audit_logger = logging.getLogger('dvbank.audit')
 audit_logger.setLevel(logging.INFO)
 audit_logger.addHandler(_audit_handler)
