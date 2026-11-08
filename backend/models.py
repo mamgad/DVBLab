@@ -1,5 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 import hashlib
+import hmac
+import os
 import json
 from datetime import datetime
 from decimal import Decimal
@@ -98,6 +100,9 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(45), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Modulo 4 - N4 [A08]: encadenamiento de hash para integridad (tamper-evident).
+    prev_hash = db.Column(db.String(64), nullable=True)
+    entry_hash = db.Column(db.String(64), nullable=True)
 
     user = db.relationship('User', backref=db.backref('audit_logs', lazy=True))
 
@@ -106,7 +111,28 @@ class AuditLog(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'action': self.action,
-            'details': json.loads(self.details) if self.details else None,
+            # El detalle se guarda como texto saneado,ya no es JSON.
+            'details': self.details,
             'ip_address': self.ip_address,
-            'created_at': self.created_at.isoformat()
+            # Fecha en UTC con zona horaria explícita.
+            'created_at': self.created_at.isoformat() + 'Z'
         } 
+
+
+
+# ---------------------------------------------------------------------------
+# Modulo 4 - N4 [A08]: firma de integridad de la bitácora (cadena de hash HMAC).
+# Cada registro se firma con la clave secreta y el hash del registro anterior.
+# Si alguien altera o borra un registro del medio, la cadena deja de validar.
+# ---------------------------------------------------------------------------
+
+def _audit_hmac_key():
+    """Clave para firmar la bitacora. Se lee de variable de entorno; nunca va en el codigo."""
+    key = os.environ.get('AUDIT_HMAC_KEY') or os.environ.get('SECRET_KEY') or 'dev-audit-key'
+    return key.encode()
+
+
+def compute_entry_hash(prev_hash, user_id, action, details, ip_address, created_at):
+    """Calcula la firma HMAC-SHA256 de un registro, encadenada al anterior."""
+    mensaje = f"{prev_hash or ''}|{user_id}|{action}|{details}|{ip_address}|{created_at.isoformat()}"
+    return hmac.new(_audit_hmac_key(), mensaje.encode(), hashlib.sha256).hexdigest()
