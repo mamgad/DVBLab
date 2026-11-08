@@ -1,7 +1,10 @@
-from flask import Blueprint, request, jsonify, redirect, render_template_string, send_file, make_response
-from models import db, User, Transaction, AuditLog
+from flask import Blueprint, request, jsonify, redirect, render_template_string, send_file
+from models import db, User, Transaction, AuditLog, compute_entry_hash
 from datetime import datetime
 from auth import token_required
+from security import require_role, safe_path, sanitize_log_value, client_ip
+from extensions import limiter
+from markupsafe import escape
 import subprocess
 import os
 import pickle
@@ -14,23 +17,29 @@ import hashlib
 
 admin_bp = Blueprint('admin', __name__)
 
-
-ADMIN_API_KEY = "sk-live-4f3c2e1d0a9b8c7d6e5f4a3b2c1d0e9f"
-AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
-AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-STRIPE_SECRET_KEY = "sk_test_FaKeKeyDoNotUse1234567890abc"
-DATABASE_PASSWORD = "pr0duction_p@ssw0rd!"
-SENDGRID_API_KEY = "SG.aBcDeFgHiJkLmNoPqRsTuV.WxYzAbCdEfGhIjKlMnOpQrStUvWxYz012345"
-GITHUB_TOKEN = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef12"
-JWT_PRIVATE_KEY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"
-SLACK_WEBHOOK = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX"
+# Modulo 4 - N10 [A05]: se eliminaron las 9 claves (AWS, Stripe, SendGrid, GitHub, contraseña de BD, llave JWT privada y webhook de Slack) que estaban escritas
+# aqui en texto plano. Los secrets se leen solo de variables de entorno.
 
 logger = logging.getLogger(__name__)
 
+# Modulo 4 - Auditoria y Logs (Melany Bustos).
+# Reutiliza el logger de auditoria de app.py, que guarda en audit.log con rotacion automatica (abre un archivo nuevo al llegar a 5 MB).
+audit_logger = logging.getLogger('dvbank.audit')
 
+# Carpeta donde se guardan los logs (backend/logs), calculada desde la ubicacion de este archivo para que funcione desde cualquier lugar.
+LOGS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+# Lista blanca de logs consultables. El cliente envia un identificador (audit), nunca el nombre ni la ruta de un archivo.
+LOGS_PERMITIDOS = {'audit': 'audit.log'}
+# Solo se devuelven los ultimos 100 KB del log para no cargar archivos enormes en memoria.
+MAX_BYTES_LOG = 100000
 
-
-
+# Lista cerrada de acciones que el cliente puede registrar, cualquier otra se rechaza (anti audit poisoning).
+ACCIONES_AUDITORIA = {
+    'login', 'logout', 'transfer', 'password_change', 'profile_update',
+    'user_update', 'user_delete', 'report_export',
+}
+# Largo maximo permitido para el campo "details" de cada registro de auditoria.
+MAX_DETALLE_AUDITORIA = 512
 
 
 @admin_bp.route('/api/admin/generate-report', methods=['POST'])
@@ -139,17 +148,35 @@ def download_statement(current_user):
 
 @admin_bp.route('/api/admin/view-log', methods=['GET'])
 @token_required
+@require_role('auditor', 'admin')
 def view_log(current_user):
-    log_file = request.args.get('file', 'app.log')
+    # Modulo 4 - N2 [A01]: solo auditor/admin, con denegacion por defecto.
+    # Se recibe un identificador de lista blanca, nunca una ruta del cliente.
+    log_id = request.args.get('file', 'audit')
+    if log_id not in LOGS_PERMITIDOS:
+        audit_logger.warning(
+            'event=view_log result=rechazado user=%s ip=%s log=%s',
+            sanitize_log_value(current_user.username, 80), client_ip(),
+            sanitize_log_value(log_id, 80),
+        )
+        return jsonify({'error': 'Log no permitido'}), 400
 
-    with open(f"/var/log/{log_file}", 'r') as f:
-        content = f.read()
+    # safe_path confirma que la ruta final queda dentro de LOGS_DIR.
+    path = safe_path(LOGS_DIR, LOGS_PERMITIDOS[log_id])
+    if not path or not os.path.isfile(path):
+        return jsonify({'log': ''})
 
+    # Se lee solo la cola del archivo para no cargar logs enormes en memoria.
+    with open(path, 'rb') as f:
+        f.seek(0, os.SEEK_END)
+        f.seek(max(0, f.tell() - MAX_BYTES_LOG))
+        content = f.read().decode('utf-8', errors='replace')
+
+    audit_logger.info(
+        'event=view_log result=ok user=%s ip=%s log=%s',
+        sanitize_log_value(current_user.username, 80), client_ip(), log_id,
+    )
     return jsonify({'log': content})
-
-
-
-
 
 
 @admin_bp.route('/api/admin/import-data', methods=['POST'])
@@ -248,33 +275,76 @@ def open_redirect():
     return redirect(target)
 
 
-
-
-
-
 @admin_bp.route('/api/admin/audit', methods=['POST'])
+@limiter.limit('30 per minute')
 @token_required
 def create_audit_entry(current_user):
-    data = request.get_json()
-    action = data.get('action', '')
+    # Modulo 4 - N1 [A09, CWE-117]: prevencion de audit poisoning.
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'Cuerpo invalido'}), 400
+
+    action = data.get('action')
     details = data.get('details', '')
 
-    logger.info(f"AUDIT: User {current_user.username} performed action: {action} - Details: {details}")
+    # 1. La accion debe ser texto de una lista cerrada.
+    if not isinstance(action, str) or action not in ACCIONES_AUDITORIA:
+        audit_logger.warning(
+            'event=audit_rechazado user=%s ip=%s motivo=accion_no_permitida',
+            sanitize_log_value(current_user.username, 80), client_ip(),
+        )
+        return jsonify({'error': 'Accion no permitida'}), 400
 
+    # 2. El detalle debe ser texto y con tamaño máximo.
+    if not isinstance(details, str) or len(details) > MAX_DETALLE_AUDITORIA:
+        return jsonify({'error': 'Detalle invalido'}), 400
+
+    # 3. Se quitan saltos de linea y caracteres de control (anti log injection)
+    # y ademas se escapan los caracteres HTML (anti XSS almacenado de segundo orden cuando el detalle se muestre en el panel de administracion).
+    detalle_seguro = str(escape(sanitize_log_value(details, MAX_DETALLE_AUDITORIA)))
+
+    # 4. Se registra con campos separados y se marca origen=cliente.
+    audit_logger.info(
+        'event=audit origen=cliente user=%s user_id=%s ip=%s action=%s details=%s',
+        sanitize_log_value(current_user.username, 80), current_user.id,
+        client_ip(), action, detalle_seguro,
+    )
+
+    # Modulo 4 - N4 [A08]: firmar el registro encadenado al anterior.
+    ultimo = AuditLog.query.order_by(AuditLog.id.desc()).first()
+    prev = ultimo.entry_hash if ultimo else None
+    ahora = datetime.utcnow()
     audit = AuditLog(
         user_id=current_user.id,
         action=action,
-        details=details,
-        ip_address=request.remote_addr
+        details=detalle_seguro,
+        ip_address=client_ip(),
+        created_at=ahora,
+        prev_hash=prev,
+    )
+    audit.entry_hash = compute_entry_hash(
+        prev, current_user.id, action, detalle_seguro, client_ip(), ahora,
     )
     db.session.add(audit)
     db.session.commit()
 
-    return jsonify({'message': 'Audit entry created'})
+    return jsonify({'message': 'Audit entry created'}), 201
 
 
-
-
+@admin_bp.route('/api/admin/audit/verify', methods=['GET'])
+@token_required
+@require_role('auditor', 'admin')
+def verify_audit_chain(current_user):
+    # Modulo 4 - N4 [A08]: recalcula la cadena y detecta alteraciones o borrados de registros del medio de la bitacora.
+    prev = None
+    for row in AuditLog.query.order_by(AuditLog.id.asc()).all():
+        esperado = compute_entry_hash(
+            prev, row.user_id, row.action, row.details, row.ip_address, row.created_at,
+        )
+        if row.entry_hash != esperado or row.prev_hash != prev:
+            return jsonify({'integra': False, 'rota_en_id': row.id}), 200
+        prev = row.entry_hash
+    return jsonify({'integra': True}), 200
 
 
 @admin_bp.route('/api/admin/users', methods=['GET'])
@@ -442,20 +512,12 @@ def export_report(current_user):
     return send_file(tmp_path, as_attachment=True)
 
 
-
-
-
 @admin_bp.route('/api/admin/dashboard-data', methods=['GET'])
 @token_required
+@require_role('admin')
 def dashboard_data(current_user):
-    users_count = User.query.count()
-    transactions_count = Transaction.query.count()
-
-    response = make_response(jsonify({
-        'users': users_count,
-        'transactions': transactions_count,
-        'api_key': ADMIN_API_KEY,
-        'aws_key': AWS_ACCESS_KEY
-    }))
-
-    return response
+    # Modulo 4 - N10 [A05/A01]: solo admin y solo conteos. Ya no se devuelve ninguna clave en la respuesta.
+    return jsonify({
+        'users': User.query.count(),
+        'transactions': Transaction.query.count(),
+    })
